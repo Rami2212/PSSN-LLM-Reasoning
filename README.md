@@ -105,3 +105,13 @@ logger = ExperimentLogger(
 logger.log_many(records)
 print(logger.run_id)
 ```
+
+## Initial baseline experiment
+
+Run [`notebooks/04_baseline_experiment.ipynb`](notebooks/04_baseline_experiment.ipynb)
+in a GPU-enabled Colab runtime to execute the complete pipeline on a deterministic
+75-problem GSM8K development subset. The runner streams evaluated records to
+`results/baseline/baseline_results.jsonl` and writes aggregate metrics to
+`results/baseline/baseline_summary.json`. The exact controlled configuration and
+artifact schema are documented in
+[`docs/baseline_experiment.md`](docs/baseline_experiment.md).
