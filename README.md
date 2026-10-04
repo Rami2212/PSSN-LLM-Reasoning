@@ -28,6 +28,8 @@ diagnostics and is not the supported baseline configuration.
 ```text
 notebooks/              Colab experiment notebooks
 src/data/gsm8k.py         GSM8K loading, normalization, and sampling
+src/models/qwen.py        Reusable Qwen3 generation wrapper
+src/baseline/cot.py       Fixed-prompt Chain-of-Thought baseline
 src/utils/environment.py  Runtime inspection and Qwen loading helpers
 tests/                  Fast tests that do not download model weights
 ```
@@ -48,3 +50,22 @@ print(gsm8k["development"][0])
 
 Run [`notebooks/02_gsm8k_dataset.ipynb`](notebooks/02_gsm8k_dataset.ipynb) in
 Colab to download the dataset and validate its splits and normalized schema.
+
+## Chain-of-Thought baseline
+
+The baseline uses one fixed GSM8K prompt, Qwen3 thinking mode, and deterministic
+greedy decoding by default. Each result preserves the full reasoning response,
+input/output token counts, and its complete generation configuration:
+
+```python
+from src.baseline.cot import run_cot_baseline
+from src.models.qwen import GenerationSettings, QwenGenerator
+
+generator = QwenGenerator.from_pretrained(
+    settings=GenerationSettings(max_new_tokens=1024, seed=42)
+)
+records = run_cot_baseline(gsm8k["development"], generator, limit=5)
+```
+
+Run [`notebooks/03_cot_baseline.ipynb`](notebooks/03_cot_baseline.ipynb) in a
+GPU-enabled Colab runtime for an end-to-end sample generation.
