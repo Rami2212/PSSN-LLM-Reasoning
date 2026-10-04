@@ -15,6 +15,12 @@ class StubGenerator:
             input_tokens=20,
             output_tokens=8,
             generation_config={"do_sample": False, "seed": 42},
+            metrics={
+                "inference_latency_seconds": 0.25,
+                "peak_gpu_memory_allocated_bytes": 1024,
+                "peak_gpu_memory_reserved_bytes": 2048,
+            },
+            model_metadata={"model_id": "Qwen/Qwen3-4B", "device": "cuda:0"},
         )
 
 
@@ -43,6 +49,10 @@ def test_generate_cot_record_keeps_trace_counts_and_config():
     assert record["output_tokens"] == 8
     assert record["generation_config"] == {"do_sample": False, "seed": 42}
     assert record["reference_answer"] == "5"
+    assert record["inference_latency_seconds"] == 0.25
+    assert record["peak_gpu_memory_allocated_bytes"] == 1024
+    assert record["peak_gpu_memory_reserved_bytes"] == 2048
+    assert record["model_metadata"]["device"] == "cuda:0"
     assert generator.prompts == [record["prompt"]]
 
 

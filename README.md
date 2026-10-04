@@ -31,7 +31,7 @@ src/data/gsm8k.py         GSM8K loading, normalization, and sampling
 src/models/qwen.py        Reusable Qwen3 generation wrapper
 src/baseline/cot.py       Fixed-prompt Chain-of-Thought baseline
 src/evaluation/           Answer extraction and accuracy scoring
-src/utils/environment.py  Runtime inspection and Qwen loading helpers
+src/utils/                Environment helpers and experiment logging
 tests/                  Fast tests that do not download model weights
 ```
 
@@ -85,4 +85,23 @@ from src.evaluation import evaluate_records, summarize_accuracy
 evaluations = evaluate_records(records)
 summary = summarize_accuracy(evaluations)
 print(summary)
+```
+
+## Efficiency metrics and experiment logging
+
+Every generated baseline record includes input/output token counts, synchronized
+end-to-end latency, peak allocated and reserved CUDA memory, generation settings,
+and model/device metadata. Persist records as append-only JSONL with run identity
+and a UTC timestamp:
+
+```python
+from src.utils import ExperimentLogger
+
+logger = ExperimentLogger(
+    "results/baseline/baseline_results.jsonl",
+    experiment_name="qwen3-gsm8k-cot",
+    run_metadata={"dataset": "openai/gsm8k", "seed": 42},
+)
+logger.log_many(records)
+print(logger.run_id)
 ```

@@ -47,7 +47,9 @@ def generate_cot_record(
         "input_tokens": generation.input_tokens,
         "output_tokens": generation.output_tokens,
         "generation_config": dict(generation.generation_config),
+        "model_metadata": dict(generation.model_metadata),
     }
+    record.update(generation.metrics)
     if example.get("reference_answer") is not None:
         record["reference_answer"] = str(example["reference_answer"])
     return record

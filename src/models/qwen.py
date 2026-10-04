@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import importlib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from src.evaluation.metrics import InferenceMeasurement, collect_model_metadata
 from src.utils.environment import DEFAULT_MODEL_ID, load_qwen_model
 
 
@@ -53,6 +54,8 @@ class GenerationResult:
     input_tokens: int
     output_tokens: int
     generation_config: dict[str, Any]
+    metrics: dict[str, int | float] = field(default_factory=dict)
+    model_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class QwenGenerator:
@@ -117,40 +120,41 @@ class QwenGenerator:
             raise ValueError("Prompt must be a non-empty string.")
 
         torch = self._get_torch()
-        self._seed(torch)
-        rendered_prompt = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=True,
-        )
-        model_inputs = self.tokenizer(
-            [rendered_prompt],
-            return_tensors="pt",
-            add_special_tokens=False,
-        )
-        if hasattr(model_inputs, "to"):
-            model_inputs = model_inputs.to(self.model.device)
-        else:
-            model_inputs = {
-                name: value.to(self.model.device)
-                for name, value in model_inputs.items()
-            }
+        with InferenceMeasurement(torch) as measurement:
+            self._seed(torch)
+            rendered_prompt = self.tokenizer.apply_chat_template(
+                [{"role": "user", "content": prompt}],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=True,
+            )
+            model_inputs = self.tokenizer(
+                [rendered_prompt],
+                return_tensors="pt",
+                add_special_tokens=False,
+            )
+            if hasattr(model_inputs, "to"):
+                model_inputs = model_inputs.to(self.model.device)
+            else:
+                model_inputs = {
+                    name: value.to(self.model.device)
+                    for name, value in model_inputs.items()
+                }
 
-        input_tokens = int(model_inputs["input_ids"].shape[-1])
-        generation_kwargs = self.settings.model_kwargs()
-        generation_kwargs["pad_token_id"] = self.tokenizer.eos_token_id
-        with torch.inference_mode():
-            output_ids = self.model.generate(**model_inputs, **generation_kwargs)
+            input_tokens = int(model_inputs["input_ids"].shape[-1])
+            generation_kwargs = self.settings.model_kwargs()
+            generation_kwargs["pad_token_id"] = self.tokenizer.eos_token_id
+            with torch.inference_mode():
+                output_ids = self.model.generate(**model_inputs, **generation_kwargs)
 
-        generated_ids = output_ids[0][input_tokens:]
-        output_tokens = len(generated_ids)
-        text = self.tokenizer.decode(
-            generated_ids,
-            skip_special_tokens=True,
-        ).strip()
-        if not text:
-            raise RuntimeError("Qwen completed generation without returning text.")
+            generated_ids = output_ids[0][input_tokens:]
+            output_tokens = len(generated_ids)
+            text = self.tokenizer.decode(
+                generated_ids,
+                skip_special_tokens=True,
+            ).strip()
+            if not text:
+                raise RuntimeError("Qwen completed generation without returning text.")
 
         config = self.settings.to_dict()
         config.update(
@@ -165,5 +169,12 @@ class QwenGenerator:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             generation_config=config,
+            metrics=measurement.to_dict(),
+            model_metadata=collect_model_metadata(
+                self.model,
+                torch,
+                model_id=self.model_id,
+                precision=self.precision,
+            ),
         )
 

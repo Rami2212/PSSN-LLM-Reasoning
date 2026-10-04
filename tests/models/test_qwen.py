@@ -47,7 +47,13 @@ class FakeTorch:
         self.cuda = SimpleNamespace(
             is_available=lambda: True,
             manual_seed_all=Mock(),
+            synchronize=Mock(),
+            reset_peak_memory_stats=Mock(),
+            max_memory_allocated=Mock(return_value=4096),
+            max_memory_reserved=Mock(return_value=8192),
+            get_device_name=Mock(return_value="Test GPU"),
         )
+        self.version = SimpleNamespace(cuda="12.test")
 
     @staticmethod
     def inference_mode():
@@ -73,6 +79,10 @@ def test_qwen_generator_preserves_full_output_and_token_counts():
     assert result.text == "reasoning and final answer"
     assert result.input_tokens == 3
     assert result.output_tokens == 2
+    assert result.metrics["inference_latency_seconds"] >= 0
+    assert result.metrics["peak_gpu_memory_allocated_bytes"] == 4096
+    assert result.metrics["peak_gpu_memory_reserved_bytes"] == 8192
+    assert result.model_metadata["gpu_name"] == "Test GPU"
     assert result.generation_config["max_new_tokens"] == 50
     assert result.generation_config["seed"] == 7
     assert result.generation_config["thinking_enabled"] is True

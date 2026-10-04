@@ -8,9 +8,11 @@ from .environment import (
     log_environment_info,
     select_inference_dtype,
 )
+from .experiment_logger import ExperimentLogger
 
 __all__ = [
     "DEFAULT_MODEL_ID",
+    "ExperimentLogger",
     "collect_environment_info",
     "generate_validation_response",
     "load_qwen_model",
