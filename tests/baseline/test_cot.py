@@ -30,7 +30,11 @@ def test_prompt_format_is_fixed_while_question_changes():
 def test_generate_cot_record_keeps_trace_counts_and_config():
     generator = StubGenerator()
     record = generate_cot_record(
-        {"id": "gsm8k-train-00001", "question": "What is 2 + 3?"},
+        {
+            "id": "gsm8k-train-00001",
+            "question": "What is 2 + 3?",
+            "reference_answer": "5",
+        },
         generator,
     )
     assert record["problem_id"] == "gsm8k-train-00001"
@@ -38,6 +42,7 @@ def test_generate_cot_record_keeps_trace_counts_and_config():
     assert record["input_tokens"] == 20
     assert record["output_tokens"] == 8
     assert record["generation_config"] == {"do_sample": False, "seed": 42}
+    assert record["reference_answer"] == "5"
     assert generator.prompts == [record["prompt"]]
 
 

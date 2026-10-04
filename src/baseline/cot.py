@@ -39,7 +39,7 @@ def generate_cot_record(
 
     prompt = build_cot_prompt(question)
     generation = generator.generate(prompt)
-    return {
+    record = {
         "problem_id": problem_id,
         "question": question.strip(),
         "prompt": prompt,
@@ -48,6 +48,9 @@ def generate_cot_record(
         "output_tokens": generation.output_tokens,
         "generation_config": dict(generation.generation_config),
     }
+    if example.get("reference_answer") is not None:
+        record["reference_answer"] = str(example["reference_answer"])
+    return record
 
 
 def run_cot_baseline(

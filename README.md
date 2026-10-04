@@ -30,6 +30,7 @@ notebooks/              Colab experiment notebooks
 src/data/gsm8k.py         GSM8K loading, normalization, and sampling
 src/models/qwen.py        Reusable Qwen3 generation wrapper
 src/baseline/cot.py       Fixed-prompt Chain-of-Thought baseline
+src/evaluation/           Answer extraction and accuracy scoring
 src/utils/environment.py  Runtime inspection and Qwen loading helpers
 tests/                  Fast tests that do not download model weights
 ```
@@ -69,3 +70,19 @@ records = run_cot_baseline(gsm8k["development"], generator, limit=5)
 
 Run [`notebooks/03_cot_baseline.ipynb`](notebooks/03_cot_baseline.ipynb) in a
 GPU-enabled Colab runtime for an end-to-end sample generation.
+
+## Answer extraction and accuracy
+
+Evaluation is independent from model inference. It recognizes the baseline's
+`Final answer:` label, GSM8K `####` markers, LaTeX boxed answers, and a final
+numeric fallback. Equivalent commas, currency formatting, decimals, fractions,
+scientific notation, and percentage presentation are normalized exactly before
+comparison:
+
+```python
+from src.evaluation import evaluate_records, summarize_accuracy
+
+evaluations = evaluate_records(records)
+summary = summarize_accuracy(evaluations)
+print(summary)
+```
