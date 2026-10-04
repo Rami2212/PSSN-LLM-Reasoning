@@ -27,6 +27,24 @@ diagnostics and is not the supported baseline configuration.
 
 ```text
 notebooks/              Colab experiment notebooks
+src/data/gsm8k.py         GSM8K loading, normalization, and sampling
 src/utils/environment.py  Runtime inspection and Qwen loading helpers
 tests/                  Fast tests that do not download model weights
 ```
+
+## GSM8K data preparation
+
+`src.data.gsm8k.load_gsm8k` downloads the official `openai/gsm8k` `main`
+configuration, preserves its train and test splits, extracts reference answers,
+and assigns stable split-based IDs. An optional development subset is sampled
+only from training data with a fixed seed:
+
+```python
+from src.data.gsm8k import load_gsm8k
+
+gsm8k = load_gsm8k(development_size=100, seed=42)
+print(gsm8k["development"][0])
+```
+
+Run [`notebooks/02_gsm8k_dataset.ipynb`](notebooks/02_gsm8k_dataset.ipynb) in
+Colab to download the dataset and validate its splits and normalized schema.
