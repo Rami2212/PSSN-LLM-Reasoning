@@ -52,6 +52,14 @@ print(gsm8k["development"][0])
 Run [`notebooks/02_gsm8k_dataset.ipynb`](notebooks/02_gsm8k_dataset.ipynb) in
 Colab to download the dataset and validate its splits and normalized schema.
 
+Notebooks 01 and 02 also create timestamped research snapshots. By default they
+persist to `MyDrive/PSSN/artifacts` so the files survive Colab shutdown. The
+environment snapshot contains GPU/CUDA details, package versions, `pip freeze`,
+repository commit, model/tokenizer revisions, precision, and validation output.
+The dataset snapshot contains every normalized split in Arrow format plus a JSON
+manifest with fingerprints, split sizes, schema, development IDs, and sampling
+configuration. Set `PERSIST_TO_GOOGLE_DRIVE=False` to use local runtime storage.
+
 ## Chain-of-Thought baseline
 
 The baseline uses one fixed GSM8K prompt, Qwen3 thinking mode, and deterministic
@@ -86,6 +94,13 @@ evaluations = evaluate_records(records)
 summary = summarize_accuracy(evaluations)
 print(summary)
 ```
+
+The T4 uses FP16; BF16 requires native NVIDIA compute capability 8.0 or newer.
+The default generation limit is 1,024 tokens. Responses stopped by that limit
+are stored with `finish_reason="length"` and evaluated with `is_correct=None`.
+Accuracy excludes these incomplete outputs; summaries also report scored and
+unscored counts and completion rate. Older records
+that reach their recorded token cap are handled conservatively as incomplete.
 
 ## Efficiency metrics and experiment logging
 

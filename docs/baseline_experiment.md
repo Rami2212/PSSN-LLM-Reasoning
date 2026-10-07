@@ -13,7 +13,11 @@ This experiment is the Week 1 control run for later PSSN comparisons. Execute
 - Thinking mode: enabled
 - Decoding: greedy (`do_sample=False`)
 - Maximum new tokens: `1024`
-- Precision: BF16 when supported, otherwise FP16
+- Precision: native BF16 on compute capability 8.0 or newer; FP16 on T4
+
+Token-limit stops are recorded as incomplete with `is_correct=null` and excluded
+from scored accuracy. Completion rate and excluded counts are reported
+alongside scored accuracy so exclusions remain visible.
 
 The official GSM8K test split remains untouched. The training-derived development
 subset is used because Week 1 validates the experiment pipeline rather than

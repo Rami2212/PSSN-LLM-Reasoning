@@ -56,6 +56,7 @@ class GenerationResult:
     generation_config: dict[str, Any]
     metrics: dict[str, int | float] = field(default_factory=dict)
     model_metadata: dict[str, Any] = field(default_factory=dict)
+    finish_reason: str = "unknown"
 
 
 class QwenGenerator:
@@ -149,6 +150,18 @@ class QwenGenerator:
 
             generated_ids = output_ids[0][input_tokens:]
             output_tokens = len(generated_ids)
+            eos_ids = getattr(
+                getattr(self.model, "generation_config", None), "eos_token_id", None
+            )
+            if not isinstance(eos_ids, (int, list, tuple)):
+                eos_ids = self.tokenizer.eos_token_id
+            if isinstance(eos_ids, int):
+                eos_ids = [eos_ids]
+            ended_with_eos = bool(output_tokens) and int(generated_ids[-1]) in (eos_ids or [])
+            finish_reason = (
+                "length" if output_tokens >= self.settings.max_new_tokens
+                and not ended_with_eos else "eos" if ended_with_eos else "unknown"
+            )
             text = self.tokenizer.decode(
                 generated_ids,
                 skip_special_tokens=True,
@@ -169,6 +182,7 @@ class QwenGenerator:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             generation_config=config,
+            finish_reason=finish_reason,
             metrics=measurement.to_dict(),
             model_metadata=collect_model_metadata(
                 self.model,

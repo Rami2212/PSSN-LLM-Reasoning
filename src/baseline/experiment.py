@@ -44,6 +44,7 @@ def run_baseline_experiment(
                     "normalized_predicted_answer"
                 ],
                 "is_correct": evaluation["is_correct"],
+                "evaluation_status": evaluation["evaluation_status"],
             }
         )
         persisted = logger.log(combined)
@@ -92,8 +93,9 @@ def build_baseline_summary(
         _require_numeric(record, "peak_gpu_memory_reserved_bytes")
         for record in items
     ]
-    correct = sum(bool(record["is_correct"]) for record in items)
-    malformed = sum(record.get("predicted_answer") is None for record in items)
+    correct = sum(record["is_correct"] is True for record in items)
+    scored = sum(record["is_correct"] is not None for record in items)
+    malformed = sum(record.get("predicted_answer") is None and record["is_correct"] is not None for record in items)
     generation_config = _consistent_value(items, "generation_config")
     model_metadata = _consistent_value(items, "model_metadata")
     run_metadata = _consistent_value(items, "run_metadata") or {}
@@ -112,9 +114,12 @@ def build_baseline_summary(
         ),
         "number_of_problems": len(items),
         "correct_answers": correct,
-        "incorrect_answers": len(items) - correct,
+        "incorrect_answers": scored - correct,
+        "scored_problems": scored,
+        "unscored_problems": len(items) - scored,
+        "completion_rate": scored / len(items),
         "malformed_outputs": malformed,
-        "accuracy": correct / len(items),
+        "accuracy": correct / scored if scored else None,
         "average_input_tokens": statistics.fmean(input_tokens),
         "average_generated_tokens": statistics.fmean(output_tokens),
         "median_generated_tokens": statistics.median(output_tokens),

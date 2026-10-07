@@ -29,7 +29,7 @@ def _import_dependency(name: str) -> Any:
 
 
 def select_inference_dtype(torch_module: Any | None = None) -> tuple[Any, str]:
-    """Select BF16 when supported, otherwise FP16 on CUDA or FP32 on CPU.
+    """Select native BF16 on Ampere or newer, FP16 on T4, or FP32 on CPU.
 
     FP32 is retained as a diagnostic fallback for non-Colab development. The
     4B model is intended to run on a CUDA runtime, where this function always
@@ -39,7 +39,9 @@ def select_inference_dtype(torch_module: Any | None = None) -> tuple[Any, str]:
     if not torch.cuda.is_available():
         return torch.float32, "float32"
 
-    bf16_supported = getattr(torch.cuda, "is_bf16_supported", lambda: False)()
+    # T4 (7.5) can report emulated BF16 support. Require native capability.
+    major, _minor = torch.cuda.get_device_capability()
+    bf16_supported = major >= 8
     if bf16_supported:
         return torch.bfloat16, "bfloat16"
     return torch.float16, "float16"
@@ -118,7 +120,7 @@ def load_qwen_model(
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=dtype,
+        dtype=dtype,
         device_map="auto" if torch.cuda.is_available() else None,
         low_cpu_mem_usage=True,
     )
@@ -131,29 +133,46 @@ def generate_validation_response(
     model: Any,
     *,
     prompt: str = "What is 17 + 25? Give a short explanation and the answer.",
-    max_new_tokens: int = 96,
+    max_new_tokens: int = 1024,
 ) -> str:
     """Run one deterministic chat generation and return only new model text."""
     messages = [{"role": "user", "content": prompt}]
-    model_inputs = tokenizer.apply_chat_template(
+    rendered_prompt = tokenizer.apply_chat_template(
         messages,
-        tokenize=True,
+        tokenize=False,
         add_generation_prompt=True,
-        return_tensors="pt",
         enable_thinking=True,
     )
-    model_inputs = model_inputs.to(model.device)
-
+    # Tokenize the rendered prompt separately. Some Transformers/tokenizer
+    # combinations return a BatchEncoding from apply_chat_template whose
+    # wrapper can be mistaken for a tensor (and has no .shape attribute).
+    encoded = tokenizer(
+        [rendered_prompt],
+        return_tensors="pt",
+        add_special_tokens=False,
+    )
     torch = _import_dependency("torch")
+    # Pass plain tensors to the model rather than depending on BatchEncoding
+    # attribute forwarding (which differs across Transformers versions).
+    input_ids = torch.as_tensor(
+        encoded["input_ids"], dtype=torch.long, device=model.device
+    )
+    model_inputs = {"input_ids": input_ids}
+    attention_mask = encoded.get("attention_mask")
+    if attention_mask is not None:
+        model_inputs["attention_mask"] = torch.as_tensor(
+            attention_mask, dtype=torch.long, device=model.device
+        )
+
     with torch.inference_mode():
         output_ids = model.generate(
-            model_inputs,
+            **model_inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    generated_ids = output_ids[0, model_inputs.shape[-1] :]
+    generated_ids = output_ids[0, input_ids.size(-1) :]
     response = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
     if not response:
         raise RuntimeError("The model completed generation without returning text.")

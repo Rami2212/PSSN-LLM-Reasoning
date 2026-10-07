@@ -46,6 +46,7 @@ def generate_cot_record(
         "reasoning_trace": generation.text,
         "input_tokens": generation.input_tokens,
         "output_tokens": generation.output_tokens,
+        "finish_reason": generation.finish_reason,
         "generation_config": dict(generation.generation_config),
         "model_metadata": dict(generation.model_metadata),
     }

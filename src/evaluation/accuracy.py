@@ -17,19 +17,21 @@ def evaluate_prediction(
     problem_id: str,
     reference_answer: Any,
     generated_response: str,
+    incomplete: bool = False,
 ) -> dict[str, Any]:
     """Evaluate one generated response against one reference answer."""
     if not isinstance(problem_id, str) or not problem_id.strip():
         raise ValueError("problem_id must be a non-empty string.")
 
-    predicted_answer = extract_final_answer(generated_response)
+    predicted_answer = None if incomplete else extract_final_answer(generated_response)
     return {
         "problem_id": problem_id,
         "reference_answer": str(reference_answer),
         "predicted_answer": predicted_answer,
         "normalized_reference_answer": normalize_numeric_answer(reference_answer),
         "normalized_predicted_answer": normalize_numeric_answer(predicted_answer),
-        "is_correct": answers_equal(predicted_answer, reference_answer),
+        "is_correct": None if incomplete else answers_equal(predicted_answer, reference_answer),
+        "evaluation_status": "incomplete" if incomplete else "scored",
     }
 
 
@@ -53,7 +55,21 @@ def evaluate_record(
         problem_id=problem_id,
         reference_answer=reference_answer,
         generated_response=generated_response,
+        incomplete=_is_incomplete(record),
     )
+
+
+def _is_incomplete(record: Mapping[str, Any]) -> bool:
+    """Detect new length stops and conservatively handle older capped records."""
+    reason = record.get("finish_reason")
+    if reason == "length":
+        return True
+    if reason == "eos":
+        return False
+    config = record.get("generation_config") or {}
+    limit = config.get("max_new_tokens")
+    count = record.get("output_tokens")
+    return isinstance(limit, int) and isinstance(count, int) and count >= limit
 
 
 def evaluate_records(
@@ -74,27 +90,32 @@ def evaluate_records(
     return evaluations
 
 
-def calculate_accuracy(evaluations: Iterable[Mapping[str, Any]]) -> float:
-    """Calculate exact-match accuracy in the interval [0, 1]."""
+def calculate_accuracy(evaluations: Iterable[Mapping[str, Any]]) -> float | None:
+    """Calculate accuracy among scored records; None means none were scored."""
     items = list(evaluations)
     if not items:
         raise ValueError("Cannot calculate accuracy for an empty evaluation set.")
     if any("is_correct" not in item for item in items):
         raise ValueError("Every evaluation must contain 'is_correct'.")
-    return sum(bool(item["is_correct"]) for item in items) / len(items)
+    scored = [item for item in items if item["is_correct"] is not None]
+    return sum(item["is_correct"] is True for item in scored) / len(scored) if scored else None
 
 
 def summarize_accuracy(
     evaluations: Iterable[Mapping[str, Any]],
-) -> dict[str, int | float]:
+) -> dict[str, int | float | None]:
     """Return counts and aggregate exact-match accuracy."""
     items = list(evaluations)
     accuracy = calculate_accuracy(items)
-    correct = sum(bool(item["is_correct"]) for item in items)
+    correct = sum(item["is_correct"] is True for item in items)
+    scored = sum(item["is_correct"] is not None for item in items)
     return {
         "number_of_problems": len(items),
         "correct_answers": correct,
-        "incorrect_answers": len(items) - correct,
+        "incorrect_answers": scored - correct,
+        "scored_problems": scored,
+        "unscored_problems": len(items) - scored,
+        "completion_rate": scored / len(items),
         "accuracy": accuracy,
     }
 

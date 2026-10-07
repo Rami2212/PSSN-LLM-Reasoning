@@ -107,6 +107,19 @@ def test_sampling_parameters_are_only_sent_when_sampling():
     assert sampled["top_p"] == 0.8
 
 
+@pytest.mark.parametrize("last_token,expected", [(22, "length"), (99, "eos")])
+def test_generation_records_cap_stop_and_eos_at_cap(last_token, expected):
+    tokenizer = FakeTokenizer()
+    tokenizer.decode = Mock(return_value="Final answer: 42")
+    model = Mock(device="cuda:0")
+    model.generate.return_value = [[10, 11, 12, 21, last_token]]
+    generator = QwenGenerator(
+        tokenizer, model, settings=GenerationSettings(max_new_tokens=2),
+        torch_module=FakeTorch(),
+    )
+    assert generator.generate("Solve this").finish_reason == expected
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
