@@ -92,12 +92,19 @@ valid completed traces was reached. Artifacts are saved under
 Before segmenting those traces, review the deterministic semantic-state
 definition in [`docs/semantic_state_definition.md`](docs/semantic_state_definition.md).
 The reusable, validated record schema is available as
-`src.semantic_states.SemanticState`; the actual segmentation algorithm is a
-implemented in `src.semantic_states.segmenter`. Run
+`src.semantic_states.SemanticState`; the segmentation algorithm is implemented
+in `src.semantic_states.segmenter`. Run
 [`notebooks/06_semantic_state_segmentation.ipynb`](notebooks/06_semantic_state_segmentation.ipynb)
 to tokenize and segment the completed-correct trace file. It writes a new,
 timestamped `semantic_state_segmentation/` artifact directory alongside the
 source run without modifying the original trace files.
+
+Validate those segments with
+[`notebooks/07_validate_semantic_states.ipynb`](notebooks/07_validate_semantic_states.ipynb).
+It writes per-trace reports, issue records, and an unchanged Week-3-ready state
+file in a separate timestamped `quality_validation/` folder. See
+[`docs/semantic_state_validation.md`](docs/semantic_state_validation.md) for
+the explicit quality thresholds.
 
 ## Answer extraction and accuracy
 
