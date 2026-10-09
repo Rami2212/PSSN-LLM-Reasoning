@@ -89,6 +89,12 @@ for semantic-state segmentation. The summary reports whether the target of 50
 valid completed traces was reached. Artifacts are saved under
 `MyDrive/PSSN2/artifacts/expanded_baseline/`.
 
+Before segmenting those traces, review the deterministic semantic-state
+definition in [`docs/semantic_state_definition.md`](docs/semantic_state_definition.md).
+The reusable, validated record schema is available as
+`src.semantic_states.SemanticState`; the actual segmentation algorithm is a
+separate Week 2 task.
+
 ## Answer extraction and accuracy
 
 Evaluation is independent from model inference. It recognizes the baseline's
