@@ -93,7 +93,11 @@ Before segmenting those traces, review the deterministic semantic-state
 definition in [`docs/semantic_state_definition.md`](docs/semantic_state_definition.md).
 The reusable, validated record schema is available as
 `src.semantic_states.SemanticState`; the actual segmentation algorithm is a
-separate Week 2 task.
+implemented in `src.semantic_states.segmenter`. Run
+[`notebooks/06_semantic_state_segmentation.ipynb`](notebooks/06_semantic_state_segmentation.ipynb)
+to tokenize and segment the completed-correct trace file. It writes a new,
+timestamped `semantic_state_segmentation/` artifact directory alongside the
+source run without modifying the original trace files.
 
 ## Answer extraction and accuracy
 

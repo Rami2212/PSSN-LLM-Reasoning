@@ -1,4 +1,4 @@
-"""Typed, serializable semantic-state record (no segmentation algorithm)."""
+"""Typed, serializable semantic-state record."""
 
 from __future__ import annotations
 
