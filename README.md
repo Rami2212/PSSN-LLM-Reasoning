@@ -79,6 +79,16 @@ records = run_cot_baseline(gsm8k["development"], generator, limit=5)
 Run [`notebooks/03_cot_baseline.ipynb`](notebooks/03_cot_baseline.ipynb) in a
 GPU-enabled Colab runtime for an end-to-end sample generation.
 
+## Week 2 trace expansion and validation
+
+Run [`notebooks/05_expand_baseline_traces.ipynb`](notebooks/05_expand_baseline_traces.ipynb)
+after syncing the current repository to Colab. It runs a reproducible 100-question
+training-derived sample, preserves each raw attempt, and writes a validation log,
+an invalid/incomplete trace file, and a separate file of completed correct traces
+for semantic-state segmentation. The summary reports whether the target of 50
+valid completed traces was reached. Artifacts are saved under
+`MyDrive/PSSN2/artifacts/expanded_baseline/`.
+
 ## Answer extraction and accuracy
 
 Evaluation is independent from model inference. It recognizes the baseline's
