@@ -9,6 +9,11 @@ from .gsm8k import (
     load_gsm8k,
     normalize_example,
 )
+from .trace_validation import (
+    summarize_trace_validation,
+    validate_trace,
+    validate_traces,
+)
 
 __all__ = [
     "DEFAULT_DEVELOPMENT_SEED",
@@ -18,5 +23,8 @@ __all__ = [
     "extract_reference_answer",
     "load_gsm8k",
     "normalize_example",
+    "summarize_trace_validation",
+    "validate_trace",
+    "validate_traces",
 ]
 
