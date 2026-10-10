@@ -14,6 +14,11 @@ from .trace_validation import (
     validate_trace,
     validate_traces,
 )
+from .semantic_state_dataset import (
+    build_semantic_state_dataset,
+    read_jsonl,
+    save_semantic_state_dataset,
+)
 
 __all__ = [
     "DEFAULT_DEVELOPMENT_SEED",
@@ -26,5 +31,8 @@ __all__ = [
     "summarize_trace_validation",
     "validate_trace",
     "validate_traces",
+    "build_semantic_state_dataset",
+    "read_jsonl",
+    "save_semantic_state_dataset",
 ]
 
