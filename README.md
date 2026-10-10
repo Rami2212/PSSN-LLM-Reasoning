@@ -130,6 +130,10 @@ to select correct, fully validated traces for state-removal experiments. It
 keeps a reason-coded audit for every included or excluded trace, protects the
 final-answer state from removal, and saves a seeded sample to a new timestamped
 folder. See [`docs/black_hole_trace_selection.md`](docs/black_hole_trace_selection.md).
+The leave-one-state-out transformation for W3-002 is implemented in
+`src/black_hole/state_removal.py`; it validates source spans, protects the
+final-answer state, and records deterministic modified contexts. See
+[`docs/black_hole_state_removal.md`](docs/black_hole_state_removal.md).
 
 ## Answer extraction and accuracy
 
