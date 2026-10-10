@@ -113,6 +113,13 @@ and a representation configuration manifest. See
 [`docs/semantic_state_representations.md`](docs/semantic_state_representations.md)
 for the context and pooling contract.
 
+Build the final Week 2 dataset by running
+[`notebooks/09_build_semantic_state_dataset.ipynb`](notebooks/09_build_semantic_state_dataset.ipynb)
+after notebooks 07 and 08. It combines complete validated traces, state
+sequences, and vector links, recording source hashes and writing a new
+timestamped output without changing source artifacts. See
+[`docs/semantic_state_dataset.md`](docs/semantic_state_dataset.md).
+
 ## Answer extraction and accuracy
 
 Evaluation is independent from model inference. It recognizes the baseline's
