@@ -107,6 +107,34 @@ def test_sampling_parameters_are_only_sent_when_sampling():
     assert sampled["top_p"] == 0.8
 
 
+def test_continuation_extends_assistant_turn_and_does_not_double_think_marker():
+    class ContinuationTokenizer(FakeTokenizer):
+        def __call__(self, prompts, **kwargs):
+            assert prompts == ["user prompt <think>\nReasoning prefix\n"]
+            return {"input_ids": FakeTensor([10, 11, 12, 13, 14, 15])}
+    tokenizer = ContinuationTokenizer()
+    tokenizer.apply_chat_template = Mock(return_value="user prompt <think>\n")
+    model = Mock(device="cuda:0")
+    model.generate.return_value = [[10, 11, 12, 13, 14, 15, 21, 22]]
+    generator = QwenGenerator(tokenizer, model, torch_module=FakeTorch())
+    result = generator.generate_continuation("Solve this", "<think>\nReasoning prefix")
+    assert result.input_tokens == 6
+    assert result.output_tokens == 2
+
+
+def test_continuation_restores_thinking_tag_omitted_by_state_segmentation():
+    class ContinuationTokenizer(FakeTokenizer):
+        def __call__(self, prompts, **kwargs):
+            assert prompts == ["assistant turn\n<think>\nRetained state\n"]
+            return {"input_ids": FakeTensor([10, 11, 12])}
+    tokenizer = ContinuationTokenizer()
+    tokenizer.apply_chat_template = Mock(return_value="assistant turn\n")
+    model = Mock(device="cuda:0")
+    model.generate.return_value = [[10, 11, 12, 21, 22]]
+    generator = QwenGenerator(tokenizer, model, torch_module=FakeTorch())
+    assert generator.generate_continuation("Solve this", "Retained state").output_tokens == 2
+
+
 @pytest.mark.parametrize("last_token,expected", [(22, "length"), (99, "eos")])
 def test_generation_records_cap_stop_and_eos_at_cap(last_token, expected):
     tokenizer = FakeTokenizer()

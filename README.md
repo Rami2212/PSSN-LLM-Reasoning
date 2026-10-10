@@ -135,6 +135,14 @@ The leave-one-state-out transformation for W3-002 is implemented in
 final-answer state, and records deterministic modified contexts. See
 [`docs/black_hole_state_removal.md`](docs/black_hole_state_removal.md).
 
+W3-003 runs each removal independently, generates a new continuation, scores
+its answer and checkpoints every attempt to Drive. Start with
+[`docs/server_setup_rocm_10_1.md`](docs/server_setup_rocm_10_1.md), then run
+[`notebooks/11_black_hole_removal_experiments.ipynb`](notebooks/11_black_hole_removal_experiments.ipynb)
+or `python -m src.black_hole.run_experiments`. See
+[`docs/black_hole_removal_experiments.md`](docs/black_hole_removal_experiments.md)
+for the context protocol and resume contract.
+
 ## Answer extraction and accuracy
 
 Evaluation is independent from model inference. It recognizes the baseline's
