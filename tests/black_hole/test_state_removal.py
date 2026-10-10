@@ -57,6 +57,8 @@ def test_removing_only_non_final_state_from_minimum_valid_trace_is_supported():
     assert result["modified_state_count"] == 1
     assert result["remaining_state_ids"] == ["S2"]
     assert result["modified_reasoning_context"] == states[-1]["text"]
+    assert result["continuation_context"] == ""
+    assert result["continuation_state_ids"] == []
 
 
 def test_final_answer_cannot_be_removed_and_input_is_unchanged():

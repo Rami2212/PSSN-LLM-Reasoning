@@ -86,6 +86,12 @@ def collect_model_metadata(
         "device": device,
         "cuda_available": cuda_available,
         "cuda_version": getattr(torch_module.version, "cuda", None),
+        "hip_version": getattr(torch_module.version, "hip", None),
+        "model_revision": (
+            getattr(getattr(model, "config", None), "_commit_hash", None)
+            if isinstance(getattr(getattr(model, "config", None), "_commit_hash", None), str)
+            else None
+        ),
         "gpu_name": gpu_name,
     }
 

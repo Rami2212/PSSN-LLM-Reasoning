@@ -56,6 +56,16 @@ def test_t4_uses_fp16_even_when_bf16_emulation_is_available():
     assert select_inference_dtype(torch) == ("fp16", "float16")
 
 
+def test_rocm_preserves_fp16_without_using_nvidia_capability():
+    torch = fake_torch(cuda_available=True, bf16_supported=True)
+    torch.version.hip = "10.1.0"
+    torch.cuda.get_device_capability.side_effect = RuntimeError("not applicable")
+    assert select_inference_dtype(torch) == ("fp16", "float16")
+    info = collect_environment_info(torch)
+    assert info["backend"] == "rocm"
+    assert info["hip_version"] == "10.1.0"
+
+
 def test_load_model_requires_cuda_before_loading_transformers_model():
     transformers = Mock()
     with pytest.raises(RuntimeError, match="CUDA is not available"):

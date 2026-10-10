@@ -40,6 +40,8 @@ def select_inference_dtype(torch_module: Any | None = None) -> tuple[Any, str]:
         return torch.float32, "float32"
 
     # T4 (7.5) can report emulated BF16 support. Require native capability.
+    if getattr(torch.version, "hip", None):
+        return torch.float16, "float16"
     major, _minor = torch.cuda.get_device_capability()
     bf16_supported = major >= 8
     if bf16_supported:
@@ -77,6 +79,8 @@ def collect_environment_info(torch_module: Any | None = None) -> dict[str, Any]:
         "torch_version": str(torch.__version__),
         "cuda_available": cuda_available,
         "cuda_version": getattr(torch.version, "cuda", None),
+        "hip_version": getattr(torch.version, "hip", None),
+        "backend": "rocm" if getattr(torch.version, "hip", None) else "cuda" if cuda_available else "cpu",
         "cudnn_version": torch.backends.cudnn.version() if cuda_available else None,
         "selected_dtype": dtype_name,
         "gpu_count": len(devices),
@@ -100,6 +104,7 @@ def load_qwen_model(
     require_cuda: bool = True,
     torch_module: Any | None = None,
     transformers_module: Any | None = None,
+    revision: str | None = None,
 ) -> tuple[Any, Any, str]:
     """Load the Qwen tokenizer and unquantized causal LM for inference.
 
@@ -117,12 +122,14 @@ def load_qwen_model(
         )
 
     dtype, dtype_name = select_inference_dtype(torch)
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
+    revision_kwargs = {"revision": revision} if revision else {}
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id, **revision_kwargs)
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_id,
         dtype=dtype,
         device_map="auto" if torch.cuda.is_available() else None,
         low_cpu_mem_usage=True,
+        **revision_kwargs,
     )
     model.eval()
     return tokenizer, model, dtype_name

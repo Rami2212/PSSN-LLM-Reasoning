@@ -85,5 +85,11 @@ def remove_semantic_state(
         "modified_reasoning_context": reconstruction_separator.join(
             state["text"] for state in remaining_states
         ),
+        "continuation_state_ids": [
+            state["state_id"] for state in remaining_states if not state["is_final_state"]
+        ],
+        "continuation_context": reconstruction_separator.join(
+            state["text"] for state in remaining_states if not state["is_final_state"]
+        ),
         "reconstruction_separator": reconstruction_separator,
     }

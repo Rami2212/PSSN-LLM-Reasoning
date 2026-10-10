@@ -12,6 +12,10 @@ different separator. The returned record preserves the removed state ID,
 zero-based index, text and token count, plus original and modified counts and
 the complete remaining state records.
 
+For W3003, use `continuation_context`: it joins only surviving non-final state
+texts, so the saved final answer is excluded from model input. The full
+`modified_reasoning_context` remains available for inspecting the removal.
+
 ```python
 from src.black_hole.state_removal import remove_semantic_state
 

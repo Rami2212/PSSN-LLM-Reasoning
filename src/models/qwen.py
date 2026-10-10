@@ -117,6 +117,15 @@ class QwenGenerator:
 
     def generate(self, prompt: str) -> GenerationResult:
         """Generate a full reasoning trace for one prompt."""
+        return self._generate(prompt, assistant_prefix=None)
+
+    def generate_continuation(self, prompt: str, assistant_prefix: str) -> GenerationResult:
+        """Continue an unfinished assistant reasoning turn, counting its prefix as input."""
+        if not isinstance(assistant_prefix, str):
+            raise TypeError("assistant_prefix must be a string")
+        return self._generate(prompt, assistant_prefix=assistant_prefix)
+
+    def _generate(self, prompt: str, assistant_prefix: str | None) -> GenerationResult:
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("Prompt must be a non-empty string.")
 
@@ -129,6 +138,15 @@ class QwenGenerator:
                 add_generation_prompt=True,
                 enable_thinking=True,
             )
+            if assistant_prefix is not None:
+                prefix = assistant_prefix
+                if rendered_prompt.rstrip().endswith("<think>"):
+                    if prefix.lstrip().startswith("<think>"):
+                        prefix = prefix.lstrip()[len("<think>"):].lstrip("\n")
+                elif not prefix.lstrip().startswith("<think>"):
+                    # Segmentation deliberately omits structural thinking tags.
+                    rendered_prompt += "<think>\n"
+                rendered_prompt += prefix + ("\n" if prefix else "")
             model_inputs = self.tokenizer(
                 [rendered_prompt],
                 return_tensors="pt",
