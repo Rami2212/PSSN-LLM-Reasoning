@@ -3,6 +3,7 @@
 from .schema import SemanticState
 from .segmenter import UnsegmentableTraceError, segment_reasoning_trace
 from .validation import validate_semantic_state_records, validate_state_sequence
+from .representations import StateRepresentationBatch, extract_semantic_state_representations
 
 __all__ = [
     "SemanticState",
@@ -10,4 +11,6 @@ __all__ = [
     "segment_reasoning_trace",
     "validate_semantic_state_records",
     "validate_state_sequence",
+    "StateRepresentationBatch",
+    "extract_semantic_state_representations",
 ]
