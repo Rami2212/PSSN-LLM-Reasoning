@@ -106,6 +106,13 @@ file in a separate timestamped `quality_validation/` folder. See
 [`docs/semantic_state_validation.md`](docs/semantic_state_validation.md) for
 the explicit quality thresholds.
 
+Run [`notebooks/08_generate_state_representations.ipynb`](notebooks/08_generate_state_representations.ipynb)
+to generate final-layer mean-pooled Qwen3-4B vectors for the validated states.
+Vectors are stored as a separate NumPy matrix with a JSONL state-to-row index
+and a representation configuration manifest. See
+[`docs/semantic_state_representations.md`](docs/semantic_state_representations.md)
+for the context and pooling contract.
+
 ## Answer extraction and accuracy
 
 Evaluation is independent from model inference. It recognizes the baseline's
