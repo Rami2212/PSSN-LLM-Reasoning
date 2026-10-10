@@ -82,12 +82,16 @@ GPU-enabled Colab runtime for an end-to-end sample generation.
 ## Week 2 trace expansion and validation
 
 Run [`notebooks/05_expand_baseline_traces.ipynb`](notebooks/05_expand_baseline_traces.ipynb)
-after syncing the current repository to Colab. It runs a reproducible 100-question
-training-derived sample, preserves each raw attempt, and writes a validation log,
-an invalid/incomplete trace file, and a separate file of completed correct traces
-for semantic-state segmentation. The summary reports whether the target of 50
-valid completed traces was reached. Artifacts are saved under
-`MyDrive/PSSN2/artifacts/expanded_baseline/`.
+after syncing the current repository to Colab. It deterministically selects 700
+previously unattempted GSM8K training questions (seed 44), preserves every raw
+attempt, and processes up to 75 new questions each time the generation cell is
+run. The fixed sample and append-only log live under
+`MyDrive/PSSN2/artifacts/expanded_baseline/w2-001-700-attempts-seed44/`, so the
+same notebook can resume across Colab sessions. The 1,024-token cap is unchanged.
+The planning estimate is about 300 Week-3-ready traces after downstream quality
+validation; actual yield is not guaranteed, so the notebook does not stop early.
+It writes validation, invalid/incomplete, and segmentation-ready files alongside
+the raw attempts.
 
 Before segmenting those traces, review the deterministic semantic-state
 definition in [`docs/semantic_state_definition.md`](docs/semantic_state_definition.md).
@@ -119,6 +123,13 @@ after notebooks 07 and 08. It combines complete validated traces, state
 sequences, and vector links, recording source hashes and writing a new
 timestamped output without changing source artifacts. See
 [`docs/semantic_state_dataset.md`](docs/semantic_state_dataset.md).
+
+For Week 3, run
+[`notebooks/10_black_hole_trace_selection.ipynb`](notebooks/10_black_hole_trace_selection.ipynb)
+to select correct, fully validated traces for state-removal experiments. It
+keeps a reason-coded audit for every included or excluded trace, protects the
+final-answer state from removal, and saves a seeded sample to a new timestamped
+folder. See [`docs/black_hole_trace_selection.md`](docs/black_hole_trace_selection.md).
 
 ## Answer extraction and accuracy
 

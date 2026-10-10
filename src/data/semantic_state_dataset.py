@@ -237,7 +237,7 @@ def build_semantic_state_dataset(
 
     validation_report_count = len(reports)
     metadata = {
-        "dataset_name": "PSSN Week 2 semantic-state dataset",
+        "dataset_name": "PSSN-sementic-state-math-problems",
         "schema_version": "1.0",
         "random_seed": random_seed,
         "randomness_used": False,
