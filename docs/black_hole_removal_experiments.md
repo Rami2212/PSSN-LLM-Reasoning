@@ -33,5 +33,5 @@ Generation interruptions and upload failures are recoverable from the saved
 per-experiment records; the in-progress computation may need to be repeated.
 
 Run notebook 11 or the server entry point as described in
-[the server setup document](server_setup_rocm_10_1.md). Labels are assigned in
+[the server setup document](server_setup_rocm_7_2.md). Labels are assigned in
 W3004, after reviewing completion and failure counts.
