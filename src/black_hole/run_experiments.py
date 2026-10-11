@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import signal
 import subprocess
 import sys
 from dataclasses import fields
@@ -14,6 +15,7 @@ from pathlib import Path
 from src.data.semantic_state_dataset import read_jsonl
 from src.models.qwen import GenerationSettings, QwenGenerator
 from src.utils.environment import collect_environment_info, load_qwen_model
+from src.utils.run_status import RunStatus
 from .removal_experiment import run_removal_experiments, save_json
 
 
@@ -80,40 +82,77 @@ def main(argv=None):
     if len(known_revisions) > 1:
         raise ValueError("baseline model revisions are inconsistent")
     revision = args.revision or (previous["run_config"]["model_revision"] if previous else next(iter(known_revisions), None))
-    tokenizer, model, precision = load_qwen_model(model_id, revision=revision)
-    resolved_revision = getattr(model.config, "_commit_hash", None)
-    if not isinstance(resolved_revision, str) or not resolved_revision:
-        raise ValueError("model revision could not be resolved; use --revision with a commit hash")
-    tokenizer_revision = getattr(tokenizer, "init_kwargs", {}).get("_commit_hash") or resolved_revision
-    generator = QwenGenerator(tokenizer, model, settings=settings, model_id=model_id, precision=precision)
-    run_config = {
-        "generation_settings": settings.to_dict(), "model_id": model_id,
-        "model_revision": resolved_revision, "tokenizer_revision": tokenizer_revision,
-        "precision": precision,
-    }
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    snapshot = args.output_dir / "sessions" / f"{stamp}.json"
-    code_hashes = {}
-    for file in (Path(__file__), Path(__file__).with_name("removal_experiment.py"), Path(__file__).with_name("state_removal.py")):
-        code_hashes[file.name] = hashlib.sha256(file.read_bytes()).hexdigest()
-    save_json(snapshot, {
-        "created_at_utc": stamp, "environment": collect_environment_info(),
-        "run_config": run_config, "input_path": str(args.input),
-        "input_sha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
-        "pip_freeze": subprocess.run([sys.executable, "-m", "pip", "freeze"], check=True, capture_output=True, text=True).stdout,
-        "repository_commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
-        "code_sha256": code_hashes,
-    })
-    mirror(snapshot)
-    summary = run_removal_experiments(
-        selected, generator, args.output_dir, run_config=run_config,
-        persist_callback=mirror, limit=args.limit,
-        progress_callback=lambda row: print(
-            f"{row['trace_id']} / {row['removed_state_id']}: {row['experiment_status']} | correct={row['is_correct']} | saved to Drive",
-            flush=True,
-        ),
+    total = sum(len(row["removable_state_ids"]) for row in selected)
+    status = RunStatus(
+        args.output_dir / "run_status.json", run_id=args.drive_output.rstrip("/").split("/")[-1],
+        total_experiments=total, persist_callback=mirror,
     )
-    print(json.dumps(summary, indent=2))
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    input_hash = hashlib.sha256(args.input.read_bytes()).hexdigest()
+    code_files = (Path(__file__), Path(__file__).with_name("removal_experiment.py"), Path(__file__).with_name("state_removal.py"))
+    code_hashes = {file.name: hashlib.sha256(file.read_bytes()).hexdigest() for file in code_files}
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+
+    def handle_sigterm(_signum, _frame):
+        raise KeyboardInterrupt("SIGTERM received")
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    try:
+        status.start(phase="loading_model", metadata={
+            "input_path": str(args.input), "input_sha256": input_hash,
+            "drive_output": args.drive_output, "output_dir": str(args.output_dir),
+            "limit_this_session": args.limit, "requested_model_id": model_id,
+            "requested_revision": revision, "generation_settings": settings.to_dict(),
+            "environment": collect_environment_info(), "code_sha256": code_hashes,
+            "repository_commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
+        })
+        tokenizer, model, precision = load_qwen_model(model_id, revision=revision)
+        resolved_revision = getattr(model.config, "_commit_hash", None)
+        if not isinstance(resolved_revision, str) or not resolved_revision:
+            raise ValueError("model revision could not be resolved; use --revision with a commit hash")
+        tokenizer_revision = getattr(tokenizer, "init_kwargs", {}).get("_commit_hash") or resolved_revision
+        generator = QwenGenerator(tokenizer, model, settings=settings, model_id=model_id, precision=precision)
+        run_config = {
+            "generation_settings": settings.to_dict(), "model_id": model_id,
+            "model_revision": resolved_revision, "tokenizer_revision": tokenizer_revision,
+            "precision": precision,
+        }
+        snapshot = args.output_dir / "sessions" / f"{stamp}.json"
+        save_json(snapshot, {
+            "created_at_utc": stamp, "environment": collect_environment_info(),
+            "run_config": run_config, "input_path": str(args.input), "input_sha256": input_hash,
+            "pip_freeze": subprocess.run([sys.executable, "-m", "pip", "freeze"], check=True, capture_output=True, text=True).stdout,
+            "repository_commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
+            "code_sha256": code_hashes,
+        })
+        mirror(snapshot)
+        status.update(status="running", phase="preparing", metadata={"resolved_run_config": run_config})
+        summary = run_removal_experiments(
+            selected, generator, args.output_dir, run_config=run_config,
+            persist_callback=mirror, limit=args.limit,
+            status_callback=lambda values: status.update(**values),
+            progress_callback=lambda row: print(
+                f"{row['trace_id']} / {row['removed_state_id']}: {row['experiment_status']} | correct={row['is_correct']} | saved to Drive",
+                flush=True,
+            ),
+        )
+        final_status = "completed" if summary["pending_experiments"] == 0 else "paused"
+        status.update(status="running", phase="finalizing", progress={**summary, "total_experiments": total,
+                       "completed_experiments": summary["saved_experiments"]})
+        status.close(final_status)
+        print(json.dumps(summary, indent=2))
+    except KeyboardInterrupt as exc:
+        status.close("stopped", error=str(exc) or "Interrupted by user or SIGTERM")
+        print("Run stopped. Completed checkpoints are saved; rerun the same command to resume.", flush=True)
+        return
+    except BaseException as exc:
+        try:
+            status.close("failed", error=f"{type(exc).__name__}: {exc}")
+        except BaseException as status_exc:
+            print(f"Could not finalize run_status.json: {status_exc}", file=sys.stderr, flush=True)
+        raise
+    finally:
+        signal.signal(signal.SIGTERM, original_sigterm)
 
 
 if __name__ == "__main__":

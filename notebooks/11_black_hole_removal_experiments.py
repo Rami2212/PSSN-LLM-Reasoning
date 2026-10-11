@@ -71,6 +71,7 @@ def main() -> None:
     print(f"W3001 input: {input_path}", flush=True)
     print(f"Local checkpoints: {local_output}", flush=True)
     print(f"Drive results: {remote_output}", flush=True)
+    print(f"Live status: {remote_output}/run_status.json", flush=True)
 
     from src.black_hole.run_experiments import main as run_experiments
 
