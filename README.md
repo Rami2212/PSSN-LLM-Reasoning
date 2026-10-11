@@ -137,7 +137,7 @@ final-answer state, and records deterministic modified contexts. See
 
 W3-003 runs each removal independently, generates a new continuation, scores
 its answer and checkpoints every attempt to Drive. Start with
-[`docs/server_setup_rocm_10_1.md`](docs/server_setup_rocm_10_1.md), then run
+[`docs/server_setup_rocm_7_2.md`](docs/server_setup_rocm_7_2.md), then run
 [`notebooks/11_black_hole_removal_experiments.ipynb`](notebooks/11_black_hole_removal_experiments.ipynb)
 or `python -m src.black_hole.run_experiments`. See
 [`docs/black_hole_removal_experiments.md`](docs/black_hole_removal_experiments.md)

@@ -1,4 +1,6 @@
-"""Run W3003 from a Python process on the configured ROCm server.
+"""Run W3003 on the ROCm 7.2 / Ubuntu 24.04 server.
+
+Set up Python 3.12 using docs/server_setup_rocm_7_2.md first.
 
 Examples:
     python notebooks/11_black_hole_removal_experiments.py --limit 2
