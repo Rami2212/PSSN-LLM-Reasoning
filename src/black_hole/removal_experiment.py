@@ -41,6 +41,7 @@ def run_removal_experiments(
     run_config: Mapping[str, Any],
     persist_callback: Callable[[Path], None] | None = None,
     progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    status_callback: Callable[[dict[str, Any]], None] | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
     """Run independent removals, checkpoint each outcome, and resume by identity.
@@ -89,6 +90,24 @@ def run_removal_experiments(
 
     completed: list[dict[str, Any]] = []
     attempted = 0
+    completed_keys: set[str] = set()
+
+    def progress_snapshot(*, phase: str, current_experiment: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {
+            "status": "running", "phase": phase,
+            "current_experiment": current_experiment,
+            "progress": {
+                "total_experiments": len(tasks),
+                "completed_experiments": len(completed_keys),
+                "pending_experiments": len(tasks) - len(completed_keys),
+                "new_attempts_this_session": attempted,
+                "correct": sum(row.get("is_correct") is True for row in completed),
+                "incorrect": sum(row.get("is_correct") is False for row in completed),
+                "incomplete": sum(row.get("experiment_status") == "incomplete" for row in completed),
+                "failed": sum(row.get("experiment_status") == "failed" for row in completed),
+            },
+        }
+
     for key, baseline, removal in tasks:
         record_path = destination / "records" / f"{key}.json"
         if record_path.exists():
@@ -98,10 +117,21 @@ def run_removal_experiments(
             if persist_callback:
                 persist_callback(record_path)
             completed.append(record)
+            completed_keys.add(key)
+            if status_callback:
+                status_callback(progress_snapshot(phase="restoring_checkpoints"))
             continue
         if limit is not None and attempted >= limit:
             continue
         attempted += 1
+        if status_callback:
+            status_callback(progress_snapshot(
+                phase="generating", current_experiment={
+                    "experiment_id": key, "problem_id": baseline["problem_id"],
+                    "trace_id": baseline["trace_id"], "removed_state_id": removal["removed_state_id"],
+                    "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                },
+            ))
         prompt = baseline.get("experiment_metadata", {}).get("prompt") or build_cot_prompt(baseline["question"])
         record = {
             **removal,
@@ -135,6 +165,9 @@ def run_removal_experiments(
         if persist_callback:
             persist_callback(record_path)
         completed.append(record)
+        completed_keys.add(key)
+        if status_callback:
+            status_callback(progress_snapshot(phase="saving_checkpoint"))
         if progress_callback:
             progress_callback(record)
 
@@ -159,4 +192,6 @@ def run_removal_experiments(
     if persist_callback:
         persist_callback(destination / "removal_summary.json")
         persist_callback(export)
+    if status_callback:
+        status_callback({"status": "running", "phase": "finalizing", "progress": summary})
     return summary

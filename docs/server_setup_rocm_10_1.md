@@ -85,6 +85,25 @@ Check the two saved result files in Drive, then run the same command without
 `--limit 2`. Completed attempts are skipped. Detach with Ctrl+B, then D; reconnect
 with `tmux attach -t pssn-week3`. Use one active process per run folder.
 
+The runner creates and continuously updates
+`PSSN2/artifacts/black_hole/w3-003-run1/run_status.json`. To view it from the
+server while the run continues:
+
+```bash
+watch -n 10 'rclone cat gdrive:PSSN2/artifacts/black_hole/w3-003-run1/run_status.json'
+```
+
+`status` / `is_running` show the lifecycle and `phase` shows setup, model load,
+generation, checkpoint saving, or completion. `progress` includes completed,
+pending, correct, incorrect, incomplete, and failed counts plus the current
+experiment. `metadata` captures the input hash, environment, generation setup,
+model revision, and code hashes. A heartbeat is uploaded every 45 seconds. If
+the process is forcibly killed or the machine loses power, it cannot write a
+stopped marker; treat `is_running: true` with a heartbeat older than
+`heartbeat_stale_after_seconds` (120 seconds) as not currently running. Ctrl+C
+and SIGTERM write `status: stopped`; reaching a `--limit` with work remaining
+writes `status: paused`; finishing all selected work writes `status: completed`.
+
 To run all pending removals, omit `--limit 2` from either command.
 
 The runner reads the baseline generation settings, including the 1,024-token
@@ -113,6 +132,8 @@ Drive folder: `PSSN2/artifacts/black_hole/w3-003-run1/`.
 - `manifest.json`: source-data hash, protocol, settings and revision identities.
 - `sessions/`: environment, package versions, repository and code hashes for
   each invocation.
+- `run_status.json`: live lifecycle/progress and run setup metadata, refreshed
+  every 45 seconds and at each experiment/checkpoint transition.
 - `state_removal_results.jsonl` and `removal_summary.json`: combined exports
   rebuilt when an invocation finishes, including a limited run.
 
