@@ -48,6 +48,37 @@ class RcloneMirror:
         self.command("copyto", str(path), f"{self.remote}/{relative}", "--retries", "5")
 
 
+def _resolve_cached_model_revision(model_id: str, requested_revision: str | None, model: object, tokenizer: object) -> str | None:
+    """Resolve the actual Hub commit even when Transformers omits _commit_hash."""
+    for owner in (getattr(model, "config", None), tokenizer):
+        candidates = [
+            getattr(owner, "_commit_hash", None),
+            getattr(owner, "init_kwargs", {}).get("_commit_hash")
+            if isinstance(getattr(owner, "init_kwargs", None), dict) else None,
+        ]
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate:
+                return candidate
+
+    try:
+        from huggingface_hub import try_to_load_from_cache
+
+        cached_config = try_to_load_from_cache(
+            model_id, "config.json", revision=requested_revision or "main"
+        )
+        if isinstance(cached_config, str):
+            snapshot = Path(cached_config).parent
+            if snapshot.parent.name == "snapshots" and snapshot.name:
+                return snapshot.name
+    except (ImportError, OSError, ValueError):
+        pass
+
+    if isinstance(requested_revision, str) and len(requested_revision) == 40:
+        if all(character in "0123456789abcdefABCDEF" for character in requested_revision):
+            return requested_revision
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path, help="W3001 eligible_traces.jsonl")
@@ -107,9 +138,12 @@ def main(argv=None):
             "repository_commit": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
         })
         tokenizer, model, precision = load_qwen_model(model_id, revision=revision)
-        resolved_revision = getattr(model.config, "_commit_hash", None)
+        resolved_revision = _resolve_cached_model_revision(model_id, revision, model, tokenizer)
         if not isinstance(resolved_revision, str) or not resolved_revision:
-            raise ValueError("model revision could not be resolved; use --revision with a commit hash")
+            raise ValueError(
+                "Could not resolve the downloaded model's commit from Transformers or the Hugging Face cache. "
+                "Retry with --revision set to the model's 40-character commit hash."
+            )
         tokenizer_revision = getattr(tokenizer, "init_kwargs", {}).get("_commit_hash") or resolved_revision
         generator = QwenGenerator(tokenizer, model, settings=settings, model_id=model_id, precision=precision)
         run_config = {

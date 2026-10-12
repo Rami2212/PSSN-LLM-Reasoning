@@ -1,5 +1,9 @@
 # W3003 server setup — ROCm 7.2 on Ubuntu 24.04 and Google Drive
 
+For the current **Week 3.1 sentence protocol (three samples, 2/3 correct)**, use
+[the Week 3.1 server commands](week3_1_sentence_server.md). The continuation
+commands below belong to the earlier Week 3 experiment.
+
 These instructions run W3003 on a Linux server using the existing Week 2 data
 and W3001 selection. Complete notebook 10 first. No rerun of notebooks 01–09
 is needed if their saved artifacts already exist.
