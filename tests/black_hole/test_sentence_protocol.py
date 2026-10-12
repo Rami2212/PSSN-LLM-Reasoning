@@ -81,7 +81,7 @@ def test_three_sample_gates_and_truncated_answer():
     assert engine.boxed_answers(r"\boxed{15") == []
 
 
-def test_drive_batch_upload_and_failure_stops_new_checkpoints(tmp_path):
+def test_drive_batch_upload_failure_keeps_accepting_local_checkpoints(tmp_path):
     mirror = ContinuousMirror(tmp_path, "gdrive:PSSN2/new-run")
     first, second = tmp_path / "a.json", tmp_path / "b.json"
     first.write_text("{}")
@@ -103,8 +103,20 @@ def test_drive_batch_upload_and_failure_stops_new_checkpoints(tmp_path):
             mirror.flush()
     assert first.exists()
     assert "a.json" in mirror.pending
-    with pytest.raises(RuntimeError, match="Drive upload failed"):
-        mirror(second)
+    mirror(second)
+    assert mirror.pending == {"a.json", "b.json"}
+
+
+def test_uploader_runner_change_can_resume_existing_run_identity():
+    from src.black_hole.run_sentence_experiments import _runner_only_change
+
+    previous = {"protocol": {"samples": 3}, "code_sha256": {
+        "run_sentence_experiments.py": "old-runner", "sentence_experiment.py": "same-engine"}}
+    current = {"protocol": {"samples": 3}, "code_sha256": {
+        "run_sentence_experiments.py": "new-runner", "sentence_experiment.py": "same-engine"}}
+    assert _runner_only_change(previous, current)
+    current["code_sha256"]["sentence_experiment.py"] = "changed-engine"
+    assert not _runner_only_change(previous, current)
 
 
 def test_selection_validates_all_rows_and_keeps_original_metadata(tmp_path):
