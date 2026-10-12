@@ -3,6 +3,12 @@
 Predictive Semantic State Navigation (PSSN) for improving LLM reasoning
 efficiency using Qwen, Hugging Face, GSM8K, and Google Colab.
 
+The active Week 3.1 experiment uses three sampled answers per condition and
+requires two correct, plus attainability >=0.8, for a sentence removal to pass.
+Run the saved traces with `python -m src.black_hole.run_sentence_experiments`.
+See [the server run instructions](docs/week3_1_sentence_server.md) for MI300X,
+continuous Drive backup, resume and evidence exports for W3004 labeling.
+
 ## Colab environment setup
 
 The first baseline uses the unquantized `Qwen/Qwen3-4B` model. Open
