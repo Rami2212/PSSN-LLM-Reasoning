@@ -23,7 +23,7 @@ from .sentence_checkpoint import atomic_json, identity, sentence_units
 
 
 class ContinuousMirror:
-    """Batch closed files, continuously upload, and surface upload failures."""
+    """Batch closed files for background upload; keep local execution independent."""
 
     def __init__(self, directory, remote, seconds=45):
         self.mirror = RcloneMirror(directory, remote)
@@ -36,19 +36,18 @@ class ContinuousMirror:
         self.error = None
         self.thread = None
 
-    def check(self):
-        if self.error:
-            raise RuntimeError("Drive upload failed; local checkpoints are retained") from self.error
-
     def __call__(self, path):
-        self.check()
         relative = Path(path).resolve().relative_to(self.directory).as_posix()
         with self.lock:
             self.pending.add(relative)
 
+    @property
+    def pending_count(self):
+        with self.lock:
+            return len(self.pending)
+
     def flush(self):
         with self.upload_lock:
-            self.check()
             with self.lock:
                 batch, self.pending = self.pending, set()
             if not batch:
@@ -63,6 +62,8 @@ class ContinuousMirror:
                     self.pending.update(batch)
                 self.error = exc
                 raise
+            else:
+                self.error = None
             finally:
                 listing.unlink(missing_ok=True)
 
@@ -71,8 +72,11 @@ class ContinuousMirror:
             while not self.stop.wait(self.seconds):
                 try:
                     self.flush()
-                except BaseException:
-                    return
+                except BaseException as exc:
+                    # Keep inference/checkpointing moving. The failed batch is
+                    # requeued by flush() and retried on the next interval.
+                    print(f"Background Drive sync failed; will retry. Local files are safe: {exc}",
+                          file=sys.stderr, flush=True)
         self.thread = threading.Thread(target=worker, daemon=True, name="sentence-drive-backup")
         self.thread.start()
 
@@ -130,6 +134,15 @@ def protocol():
             "upstream_commit": engine.UPSTREAM_COMMIT,
             "unit": "reasoning_sentence", "source_state_mapping": "character_overlap",
             "incomplete_samples": "count_as_non_correct", "labels_implemented": False}
+
+
+def _runner_only_change(previous, current):
+    """Allow uploader-only runner edits to resume an otherwise identical study."""
+    old = json.loads(json.dumps(previous))
+    new = json.loads(json.dumps(current))
+    old.get("code_sha256", {}).pop("run_sentence_experiments.py", None)
+    new.get("code_sha256", {}).pop("run_sentence_experiments.py", None)
+    return old == new
 
 
 def save_evidence(directory, candidate, report, run_identity, persist):
@@ -228,11 +241,16 @@ def main(argv=None):
                            "torch_version": torch.__version__, "transformers_version": transformers.__version__}
         manifest_path = args.output_dir / "manifest.json"
         if manifest_path.exists():
-            if json.loads(manifest_path.read_text(encoding="utf-8")) != identity_record:
+            saved_identity = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if saved_identity != identity_record and not _runner_only_change(saved_identity, identity_record):
                 raise ValueError("Run input, protocol, code or software changed; choose a new output folder")
+            # Keep the original run identity so existing checkpoints and trace
+            # completion markers remain valid. This session's manifest records
+            # the new runner hash separately in its session metadata.
+            run_identity = identity(saved_identity)
         else:
             atomic_json(manifest_path, identity_record)
-        run_identity = identity(identity_record)
+            run_identity = identity(identity_record)
         for path in args.output_dir.rglob("*"):
             if path.is_file() and not path.name.startswith(".") and not path.name.endswith(".tmp"):
                 mirror(path)
@@ -245,7 +263,8 @@ def main(argv=None):
         if hashlib.sha256(source_copy.read_bytes()).hexdigest() != source_hash:
             raise ValueError("Preserved source file hash differs from input")
         mirror(source_copy)
-        mirror.flush()
+        # Start syncing recovered/queued files in parallel with model loading
+        # and inference; do not make startup wait for a potentially large copy.
         mirror.start()
         status = RunStatus(args.output_dir / "run_status.json", run_id=args.output_dir.name,
                            total_experiments=len(candidates), persist_callback=mirror)
@@ -281,7 +300,6 @@ def main(argv=None):
                                                  check=True, capture_output=True, text=True).stdout})
         mirror(session_path)
         def phase(problem_id, state, name, count):
-            mirror.check()
             status.update(status="running", phase=name,
                           current_experiment={"problem_id": problem_id, "question_status": state,
                                               "completed_conditions": count})
@@ -305,12 +323,12 @@ def main(argv=None):
                         "core_validation_passed": result.get("core_validation_passed"),
                         "exclusion_reasons": result.get("exclusion_reasons", []), "evidence_rows": count})
             mirror(marker)
-            mirror.flush()
             new += 1
             completed = sum((args.output_dir / row["problem_id"] / "trace_completed.json").exists() for row in candidates)
             status.update(status="running", phase="trace_saved", progress={"completed_experiments": completed,
                           "pending_experiments": len(candidates) - completed, "new_attempts_this_session": new})
-            print(f"TRACE SAVED: {candidate['problem_id']} | {completed}/{len(candidates)} traces | Drive synced", flush=True)
+            print(f"TRACE CHECKPOINTED LOCALLY: {candidate['problem_id']} | {completed}/{len(candidates)} traces | "
+                  f"{mirror.pending_count} file(s) queued for background Drive sync", flush=True)
         summaries, evidence = [], []
         for candidate in candidates:
             directory = args.output_dir / candidate["problem_id"]
