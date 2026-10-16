@@ -1,2 +1,202 @@
 # PSSN-LLM-Reasoning
-Predictive Semantic State Navigation (PSSN) for improving LLM reasoning efficiency using Qwen, Hugging Face, GSM8K, and Google Colab.
+
+Predictive Semantic State Navigation (PSSN) for improving LLM reasoning
+efficiency using Qwen, Hugging Face, GSM8K, and Google Colab.
+
+The active Week 3.1 experiment uses three sampled answers per condition and
+requires two correct, plus attainability >=0.8, for a sentence removal to pass.
+Run the saved traces with `python -m src.black_hole.run_sentence_experiments`.
+See [the server run instructions](docs/week3_1_sentence_server.md) for MI300X,
+continuous Drive backup, resume and evidence exports for W3004 labeling.
+
+## Colab environment setup
+
+The first baseline uses the unquantized `Qwen/Qwen3-4B` model. Open
+[`notebooks/01_environment_setup.ipynb`](notebooks/01_environment_setup.ipynb)
+in Google Colab, select a GPU runtime, and run every cell in order. The notebook
+clones this repository when necessary, installs `requirements.txt`, reports the
+CUDA/GPU configuration, selects BF16 when supported (otherwise FP16), loads the
+tokenizer and model, and runs a deterministic validation prompt.
+
+For a local setup:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest
+```
+
+A CUDA GPU with enough memory for an unquantized 4B-parameter model is required
+for the validation inference. CPU execution is available only for environment
+diagnostics and is not the supported baseline configuration.
+
+## Project structure
+
+```text
+notebooks/              Colab experiment notebooks
+src/data/gsm8k.py         GSM8K loading, normalization, and sampling
+src/models/qwen.py        Reusable Qwen3 generation wrapper
+src/baseline/cot.py       Fixed-prompt Chain-of-Thought baseline
+src/evaluation/           Answer extraction and accuracy scoring
+src/utils/                Environment helpers and experiment logging
+tests/                  Fast tests that do not download model weights
+```
+
+## GSM8K data preparation
+
+`src.data.gsm8k.load_gsm8k` downloads the official `openai/gsm8k` `main`
+configuration, preserves its train and test splits, extracts reference answers,
+and assigns stable split-based IDs. An optional development subset is sampled
+only from training data with a fixed seed:
+
+```python
+from src.data.gsm8k import load_gsm8k
+
+gsm8k = load_gsm8k(development_size=100, seed=42)
+print(gsm8k["development"][0])
+```
+
+Run [`notebooks/02_gsm8k_dataset.ipynb`](notebooks/02_gsm8k_dataset.ipynb) in
+Colab to download the dataset and validate its splits and normalized schema.
+
+Notebooks 01 and 02 also create timestamped research snapshots. By default they
+persist to `MyDrive/PSSN/artifacts` so the files survive Colab shutdown. The
+environment snapshot contains GPU/CUDA details, package versions, `pip freeze`,
+repository commit, model/tokenizer revisions, precision, and validation output.
+The dataset snapshot contains every normalized split in Arrow format plus a JSON
+manifest with fingerprints, split sizes, schema, development IDs, and sampling
+configuration. Set `PERSIST_TO_GOOGLE_DRIVE=False` to use local runtime storage.
+
+## Chain-of-Thought baseline
+
+The baseline uses one fixed GSM8K prompt, Qwen3 thinking mode, and deterministic
+greedy decoding by default. Each result preserves the full reasoning response,
+input/output token counts, and its complete generation configuration:
+
+```python
+from src.baseline.cot import run_cot_baseline
+from src.models.qwen import GenerationSettings, QwenGenerator
+
+generator = QwenGenerator.from_pretrained(
+    settings=GenerationSettings(max_new_tokens=1024, seed=42)
+)
+records = run_cot_baseline(gsm8k["development"], generator, limit=5)
+```
+
+Run [`notebooks/03_cot_baseline.ipynb`](notebooks/03_cot_baseline.ipynb) in a
+GPU-enabled Colab runtime for an end-to-end sample generation.
+
+## Week 2 trace expansion and validation
+
+Run [`notebooks/05_expand_baseline_traces.ipynb`](notebooks/05_expand_baseline_traces.ipynb)
+after syncing the current repository to Colab. It deterministically selects 700
+previously unattempted GSM8K training questions (seed 44), preserves every raw
+attempt, and processes up to 75 new questions each time the generation cell is
+run. The fixed sample and append-only log live under
+`MyDrive/PSSN2/artifacts/expanded_baseline/w2-001-700-attempts-seed44/`, so the
+same notebook can resume across Colab sessions. The 1,024-token cap is unchanged.
+The planning estimate is about 300 Week-3-ready traces after downstream quality
+validation; actual yield is not guaranteed, so the notebook does not stop early.
+It writes validation, invalid/incomplete, and segmentation-ready files alongside
+the raw attempts.
+
+Before segmenting those traces, review the deterministic semantic-state
+definition in [`docs/semantic_state_definition.md`](docs/semantic_state_definition.md).
+The reusable, validated record schema is available as
+`src.semantic_states.SemanticState`; the segmentation algorithm is implemented
+in `src.semantic_states.segmenter`. Run
+[`notebooks/06_semantic_state_segmentation.ipynb`](notebooks/06_semantic_state_segmentation.ipynb)
+to tokenize and segment the completed-correct trace file. It writes a new,
+timestamped `semantic_state_segmentation/` artifact directory alongside the
+source run without modifying the original trace files.
+
+Validate those segments with
+[`notebooks/07_validate_semantic_states.ipynb`](notebooks/07_validate_semantic_states.ipynb).
+It writes per-trace reports, issue records, and an unchanged Week-3-ready state
+file in a separate timestamped `quality_validation/` folder. See
+[`docs/semantic_state_validation.md`](docs/semantic_state_validation.md) for
+the explicit quality thresholds.
+
+Run [`notebooks/08_generate_state_representations.ipynb`](notebooks/08_generate_state_representations.ipynb)
+to generate final-layer mean-pooled Qwen3-4B vectors for the validated states.
+Vectors are stored as a separate NumPy matrix with a JSONL state-to-row index
+and a representation configuration manifest. See
+[`docs/semantic_state_representations.md`](docs/semantic_state_representations.md)
+for the context and pooling contract.
+
+Build the final Week 2 dataset by running
+[`notebooks/09_build_semantic_state_dataset.ipynb`](notebooks/09_build_semantic_state_dataset.ipynb)
+after notebooks 07 and 08. It combines complete validated traces, state
+sequences, and vector links, recording source hashes and writing a new
+timestamped output without changing source artifacts. See
+[`docs/semantic_state_dataset.md`](docs/semantic_state_dataset.md).
+
+For Week 3, run
+[`notebooks/10_black_hole_trace_selection.ipynb`](notebooks/10_black_hole_trace_selection.ipynb)
+to select correct, fully validated traces for state-removal experiments. It
+keeps a reason-coded audit for every included or excluded trace, protects the
+final-answer state from removal, and saves a seeded sample to a new timestamped
+folder. See [`docs/black_hole_trace_selection.md`](docs/black_hole_trace_selection.md).
+The leave-one-state-out transformation for W3-002 is implemented in
+`src/black_hole/state_removal.py`; it validates source spans, protects the
+final-answer state, and records deterministic modified contexts. See
+[`docs/black_hole_state_removal.md`](docs/black_hole_state_removal.md).
+
+W3-003 runs each removal independently, generates a new continuation, scores
+its answer and checkpoints every attempt to Drive. Start with
+[`docs/server_setup_rocm_7_2.md`](docs/server_setup_rocm_7_2.md), then run
+[`notebooks/11_black_hole_removal_experiments.ipynb`](notebooks/11_black_hole_removal_experiments.ipynb)
+or `python -m src.black_hole.run_experiments`. See
+[`docs/black_hole_removal_experiments.md`](docs/black_hole_removal_experiments.md)
+for the context protocol and resume contract.
+
+## Answer extraction and accuracy
+
+Evaluation is independent from model inference. It recognizes the baseline's
+`Final answer:` label, GSM8K `####` markers, LaTeX boxed answers, and a final
+numeric fallback. Equivalent commas, currency formatting, decimals, fractions,
+scientific notation, and percentage presentation are normalized exactly before
+comparison:
+
+```python
+from src.evaluation import evaluate_records, summarize_accuracy
+
+evaluations = evaluate_records(records)
+summary = summarize_accuracy(evaluations)
+print(summary)
+```
+
+The T4 uses FP16; BF16 requires native NVIDIA compute capability 8.0 or newer.
+The default generation limit is 1,024 tokens. Responses stopped by that limit
+are stored with `finish_reason="length"` and evaluated with `is_correct=None`.
+Accuracy excludes these incomplete outputs; summaries also report scored and
+unscored counts and completion rate. Older records
+that reach their recorded token cap are handled conservatively as incomplete.
+
+## Efficiency metrics and experiment logging
+
+Every generated baseline record includes input/output token counts, synchronized
+end-to-end latency, peak allocated and reserved CUDA memory, generation settings,
+and model/device metadata. Persist records as append-only JSONL with run identity
+and a UTC timestamp:
+
+```python
+from src.utils import ExperimentLogger
+
+logger = ExperimentLogger(
+    "results/baseline/baseline_results.jsonl",
+    experiment_name="qwen3-gsm8k-cot",
+    run_metadata={"dataset": "openai/gsm8k", "seed": 42},
+)
+logger.log_many(records)
+print(logger.run_id)
+```
+
+## Initial baseline experiment
+
+Run [`notebooks/04_baseline_experiment.ipynb`](notebooks/04_baseline_experiment.ipynb)
+in a GPU-enabled Colab runtime to execute the complete pipeline on a deterministic
+75-problem GSM8K development subset. The runner streams evaluated records to
+`results/baseline/baseline_results.jsonl` and writes aggregate metrics to
+`results/baseline/baseline_summary.json`. The exact controlled configuration and
+artifact schema are documented in
+[`docs/baseline_experiment.md`](docs/baseline_experiment.md).

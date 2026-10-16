@@ -1,0 +1,12 @@
+# Runtime dependencies for the Google Colab baseline environment.
+# Colab already provides a CUDA-compatible PyTorch build; leaving the version
+# unconstrained prevents pip from replacing it with an incompatible wheel.
+torch
+transformers>=4.51.0,<6
+accelerate>=1.2.0,<2
+datasets>=3.2.0,<5
+safetensors>=0.4.5,<1
+sentencepiece>=0.2.0,<1
+pytest>=8.0.0,<10
+scikit-learn>=1.5,<2
+

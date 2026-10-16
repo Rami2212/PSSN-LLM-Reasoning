@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.idea/
+doc/
+tickets/
+PSSN/
+research/
+notebook-codes/
+huggingface_dataset/
+.pytest-tmp-bg-sync/
+.pytest-tmp-bg-sync-2/
