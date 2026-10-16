@@ -224,8 +224,9 @@ def prepare_split_features(
     asset_cache: dict[str, dict[str, Any]] = {}
     output = {}
     for split, rows in splits.items():
+        print(f"Extracting {split} activations: {len(rows)} rows", flush=True)
         vectors, labels, row_ids, groups, state_rows = [], [], [], [], []
-        for row in rows:
+        for row_number, row in enumerate(rows, 1):
             problem_id = row["problem_id"]
             if problem_id not in evidence_cache:
                 evidence_cache[problem_id] = _index_evidence(evidence_dir, problem_id)
@@ -248,6 +249,9 @@ def prepare_split_features(
             labels.append(LABEL_TO_ID[row["label"]])
             row_ids.append(row["dataset_row_id"])
             groups.append(problem_id)
+            if row_number % 10 == 0 or row_number == len(rows):
+                print(f"{split}: {row_number}/{len(rows)} rows processed "
+                      f"({len(cache)} unique contexts cached)", flush=True)
         features = np.stack(vectors).astype(np.float32, copy=False)
         result: dict[str, Any] = {
             "features": features,
