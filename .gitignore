@@ -225,6 +225,13 @@ tickets/
 PSSN/
 research/
 notebook-codes/
+results/
 huggingface_dataset/
 .pytest-tmp-bg-sync/
 .pytest-tmp-bg-sync-2/
+.pytest-w4-006-temp/
+.pytest-campaign-temp/
+.pytest-campaign-resume-temp/
+.pytest-campaign-final-temp/
+.pytest-tmp-external-20261017a/
+.pytest-tmp-*/

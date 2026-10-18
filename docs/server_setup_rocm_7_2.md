@@ -4,6 +4,11 @@ For the current **Week 3.1 sentence protocol (three samples, 2/3 correct)**, use
 [the Week 3.1 server commands](week3_1_sentence_server.md). The continuation
 commands below belong to the earlier Week 3 experiment.
 
+For the separate **5,000-row V2 activation, predictor-training, held-out test,
+and Google Drive backup workflow**, use the
+[MI300X V2 runbook](mi300x_sentence_activations_v2_runbook.md). It includes the
+new V2 evaluator and the exact commands for evaluating both feature variants.
+
 These instructions run W3003 on a Linux server using the existing Week 2 data
 and W3001 selection. Complete notebook 10 first. No rerun of notebooks 01–09
 is needed if their saved artifacts already exist.

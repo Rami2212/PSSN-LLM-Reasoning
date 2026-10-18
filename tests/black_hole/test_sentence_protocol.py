@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from src.black_hole import sentence_experiment as engine
-from src.black_hole.run_sentence_experiments import ContinuousMirror, prepare_candidates, protocol
+from src.black_hole.run_sentence_experiments import ContinuousMirror, LocalOnlyMirror, prepare_candidates, protocol
 from src.black_hole.sentence_checkpoint import SentenceCheckpoint, collect_trials, sentence_units
 
 
@@ -117,6 +117,18 @@ def test_uploader_runner_change_can_resume_existing_run_identity():
     assert _runner_only_change(previous, current)
     current["code_sha256"]["sentence_experiment.py"] = "changed-engine"
     assert not _runner_only_change(previous, current)
+
+
+def test_manual_backup_mode_never_calls_rclone(tmp_path):
+    path = tmp_path / "checkpoint.json"
+    path.write_text('{"complete": true}')
+    with patch("subprocess.run", side_effect=AssertionError("unexpected external command")):
+        mirror = LocalOnlyMirror()
+        mirror.start()
+        mirror(path)
+        mirror.close()
+    assert mirror.pending_count == 0
+    assert json.loads(path.read_text())["complete"] is True
 
 
 def test_selection_validates_all_rows_and_keeps_original_metadata(tmp_path):
