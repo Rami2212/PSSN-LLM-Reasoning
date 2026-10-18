@@ -1,4 +1,4 @@
-"""Week 3.1: resumable three-sample sentence experiments with Drive backup."""
+"""Week 3.1: resumable three-sample sentence experiments with optional Drive backup."""
 
 from __future__ import annotations
 
@@ -85,6 +85,24 @@ class ContinuousMirror:
         if self.thread:
             self.thread.join()
         self.flush()
+
+
+class LocalOnlyMirror:
+    """Use the same checkpoint callbacks without starting uploads or restoring Drive."""
+
+    pending_count = 0
+
+    def __init__(self):
+        self.stop = threading.Event()
+
+    def __call__(self, path):
+        pass
+
+    def start(self):
+        pass
+
+    def close(self):
+        pass
 
 
 def prepare_candidates(path):
@@ -198,7 +216,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--drive-output", required=True)
+    parser.add_argument("--drive-output", help="Optional rclone remote; omit for local checkpoints and manual backups")
     parser.add_argument("--revision", default=engine.MODEL_REVISION)
     parser.add_argument("--limit", type=int, help="Maximum NEW completed traces this session, not individual trials")
     parser.add_argument("--sync-seconds", type=int, default=45, help="Background Drive backup interval")
@@ -219,12 +237,14 @@ def main(argv=None):
         fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as exc:
         raise RuntimeError("Another process is already using this local run folder") from exc
-    mirror = ContinuousMirror(args.output_dir, args.drive_output, args.sync_seconds)
+    mirror = (ContinuousMirror(args.output_dir, args.drive_output, args.sync_seconds)
+              if args.drive_output else LocalOnlyMirror())
     status = None
     original_sigterm = signal.getsignal(signal.SIGTERM)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt("SIGTERM")))
     try:
-        mirror.mirror.restore()
+        if args.drive_output:
+            mirror.mirror.restore()
         import torch
         import transformers
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -327,8 +347,10 @@ def main(argv=None):
             completed = sum((args.output_dir / row["problem_id"] / "trace_completed.json").exists() for row in candidates)
             status.update(status="running", phase="trace_saved", progress={"completed_experiments": completed,
                           "pending_experiments": len(candidates) - completed, "new_attempts_this_session": new})
+            backup_message = (f"{mirror.pending_count} file(s) queued for background Drive sync"
+                              if args.drive_output else "manual backup mode")
             print(f"TRACE CHECKPOINTED LOCALLY: {candidate['problem_id']} | {completed}/{len(candidates)} traces | "
-                  f"{mirror.pending_count} file(s) queued for background Drive sync", flush=True)
+                  f"{backup_message}", flush=True)
         summaries, evidence = [], []
         for candidate in candidates:
             directory = args.output_dir / candidate["problem_id"]

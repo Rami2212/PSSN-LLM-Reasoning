@@ -1,5 +1,10 @@
 # Week 3.1 server run: three samples, two correct to pass
 
+For expanding the dataset to **500 usable questions**, with all preparation on
+MI300X and manual archive uploads after important stages, follow
+[the 500-question runbook](mi300x_500_question_runbook.md). Its runner commands
+omit `--drive-output` to keep computation independent of Drive uploads.
+
 Use the existing Ubuntu 24.04 / ROCm 7.2 environment and configured `gdrive` remote. The active tickets are in [3.1.md](../tickets/3.1.md). This runs the Q62 sentence procedure across every selected trace. It uses FP16, the pinned Qwen3 revision, three sampled answers per condition, at least two correct for sufficiency, and attainability >=0.8. It retains gradient and random comparisons.
 
 ## Update the server files
