@@ -8,6 +8,7 @@ import torch
 from src.black_hole.config import BlackHoleDetectorConfig
 from src.black_hole.detector import BlackHoleDetector
 from src.black_hole.sentence_evaluation_v2 import evaluate_test_split
+from src.black_hole.sentence_threshold_v2 import select_validation_threshold
 
 
 def _sha256(path):
@@ -98,4 +99,64 @@ def test_v2_evaluator_rejects_checkpoints_from_other_training_features(tmp_path)
     with pytest.raises(ValueError, match="train activation hash does not match"):
         evaluate_test_split(
             features_dir, checkpoint_path, split_jsonl, tmp_path / "evaluation", device="cpu"
+        )
+
+
+def test_v2_threshold_is_selected_on_validation_and_used_for_test(tmp_path):
+    features_dir, checkpoint_path, test_jsonl = _prepare_evaluation(tmp_path)
+    validation_jsonl = tmp_path / "validation.jsonl"
+    rows = []
+    for index, label in enumerate([0, 1]):
+        rows.append({
+            "dataset_row_id": f"validation-row-{index}",
+            "problem_id": f"val-q{index}",
+            "label": "low_value_in_context" if label else "answer_sensitive_in_context",
+        })
+    validation_jsonl.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    selection_path = tmp_path / "evaluation" / "threshold_selection.json"
+    selection = select_validation_threshold(
+        features_dir,
+        checkpoint_path,
+        validation_jsonl,
+        selection_path,
+        max_false_skip_rate=0.0,
+        device="cpu",
+    )
+    assert selection["selection_split"] == "validation"
+    assert selection["test_data_used"] is False
+    assert selection["validation_metrics_at_selected_threshold"]["answer_sensitive_false_skip_rate"] == 0
+
+    result = evaluate_test_split(
+        features_dir,
+        checkpoint_path,
+        test_jsonl,
+        selection_path.parent,
+        device="cpu",
+        threshold_selection_path=selection_path,
+    )
+    assert result["threshold_source"] == "validation_only"
+    assert result["threshold"] == selection["selected_threshold"]
+    assert result["threshold_tuned_on_test"] is False
+
+
+def test_v2_evaluator_rejects_threshold_selection_for_different_validation_data(tmp_path):
+    features_dir, checkpoint_path, test_jsonl = _prepare_evaluation(tmp_path)
+    validation_jsonl = tmp_path / "validation.jsonl"
+    rows = [
+        {"dataset_row_id": f"validation-row-{i}", "problem_id": f"val-q{i}",
+         "label": "low_value_in_context" if label else "answer_sensitive_in_context"}
+        for i, label in enumerate([0, 1])
+    ]
+    validation_jsonl.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    selection_path = tmp_path / "threshold_selection.json"
+    select_validation_threshold(
+        features_dir, checkpoint_path, validation_jsonl, selection_path,
+        max_false_skip_rate=0.1, device="cpu",
+    )
+    validation_jsonl.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="different validation split"):
+        evaluate_test_split(
+            features_dir, checkpoint_path, test_jsonl, tmp_path / "evaluation",
+            device="cpu", threshold_selection_path=selection_path,
         )

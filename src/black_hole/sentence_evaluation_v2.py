@@ -76,8 +76,10 @@ def _load_test_arrays(path: Path) -> dict[str, np.ndarray]:
     return result
 
 
-def _classification_metrics(labels: np.ndarray, probabilities: np.ndarray) -> dict[str, Any]:
-    predictions = (probabilities >= THRESHOLD).astype(np.int64)
+def _classification_metrics(
+    labels: np.ndarray, probabilities: np.ndarray, threshold: float = THRESHOLD
+) -> dict[str, Any]:
+    predictions = (probabilities >= threshold).astype(np.int64)
     tn, fp, fn, tp = confusion_matrix(labels, predictions, labels=[0, 1]).ravel().tolist()
     low_precision = tp / (tp + fp) if tp + fp else 0.0
     low_recall = tp / (tp + fn) if tp + fn else 0.0
@@ -103,7 +105,7 @@ def _classification_metrics(labels: np.ndarray, probabilities: np.ndarray) -> di
             "labels": [ID_TO_LABEL[0], ID_TO_LABEL[1]],
             "rows_true_cols_pred": [[int(tn), int(fp)], [int(fn), int(tp)]],
         },
-        "probability_threshold": THRESHOLD,
+        "probability_threshold": float(threshold),
     }
     if len(np.unique(labels)) == 2:
         result["roc_auc"] = float(roc_auc_score(labels, probabilities))
@@ -123,6 +125,7 @@ def evaluate_test_split(
     output_dir: str | Path,
     *,
     device: str = "auto",
+    threshold_selection_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Score only test examples and save metrics plus row-level predictions."""
     data_dir = Path(data_dir)
@@ -192,12 +195,31 @@ def evaluate_test_split(
     if mean.shape != (config.input_size,) or scale.shape != (config.input_size,) or torch.any(scale <= 0):
         raise ValueError("Checkpoint normalization does not match the model input")
 
+    threshold = THRESHOLD
+    threshold_source = "fixed_default"
+    if threshold_selection_path is not None:
+        selection_path = Path(threshold_selection_path)
+        selection = json.loads(selection_path.read_text(encoding="utf-8"))
+        if selection.get("schema_version") != "pssn-sentence-validation-threshold-v1":
+            raise ValueError("Unrecognized validation threshold selection file")
+        if selection.get("checkpoint_sha256") != _sha256(checkpoint_path):
+            raise ValueError("Threshold selection was made for a different checkpoint")
+        if selection.get("validation_activation_sha256") != _sha256(data_dir / "validation.npz"):
+            raise ValueError("Threshold selection was made for different validation activations")
+        validation_jsonl = split_jsonl.parent / "validation.jsonl"
+        if not validation_jsonl.is_file() or selection.get("validation_split_sha256") != _sha256(validation_jsonl):
+            raise ValueError("Threshold selection was made for a different validation split")
+        threshold = float(selection.get("selected_threshold", -1))
+        if not np.isfinite(threshold) or threshold < 0:
+            raise ValueError("Selected threshold must be finite and non-negative")
+        threshold_source = "validation_only"
+
     features = torch.as_tensor(data["features"], dtype=torch.float32, device=selected_device)
     normalized = torch.nan_to_num((features - mean) / scale)
     with torch.inference_mode():
         probabilities = model.predict_proba(normalized).detach().cpu().numpy().astype(np.float64)
-    metrics = _classification_metrics(data["labels"], probabilities)
-    predictions = (probabilities >= THRESHOLD).astype(np.int64)
+    metrics = _classification_metrics(data["labels"], probabilities, threshold)
+    predictions = (probabilities >= threshold).astype(np.int64)
     prediction_rows = []
     for index, row_id in enumerate(data["row_ids"].tolist()):
         row = row_map[row_id]
@@ -226,7 +248,8 @@ def evaluate_test_split(
         "schema_version": "pssn-sentence-activation-test-evaluation-v1",
         "status": "completed",
         "evaluation_split": "test",
-        "threshold": THRESHOLD,
+        "threshold": threshold,
+        "threshold_source": threshold_source,
         "threshold_tuned_on_test": False,
         "model_selection_used_test": False,
         "feature_directory": str(data_dir.resolve()),
@@ -257,10 +280,19 @@ def main() -> None:
     parser.add_argument("--checkpoint", required=True, help="Trained best_model.pt checkpoint")
     parser.add_argument("--split-jsonl", required=True, help="Matching question-held-out test.jsonl")
     parser.add_argument("--output-dir", required=True, help="Directory for test metrics and predictions")
+    parser.add_argument(
+        "--threshold-selection",
+        help="Optional threshold-selection.json created from validation data only",
+    )
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:N")
     args = parser.parse_args()
     result = evaluate_test_split(
-        args.data_dir, args.checkpoint, args.split_jsonl, args.output_dir, device=args.device
+        args.data_dir,
+        args.checkpoint,
+        args.split_jsonl,
+        args.output_dir,
+        device=args.device,
+        threshold_selection_path=args.threshold_selection,
     )
     print(json.dumps(result, indent=2))
 
