@@ -10,7 +10,8 @@ manually after extraction and after each model finishes training.
 
 Before connecting to the server, make sure the latest repository version,
 including `src/black_hole/sentence_activations_v2.py` and
-`src/black_hole/sentence_evaluation_v2.py`, is available there. These are local
+`src/black_hole/sentence_evaluation_v2.py` plus
+`src/black_hole/sentence_threshold_v2.py`, is available there. These are local
 changes; a fresh `git clone` will not include them until you commit and push
 them, or transfer the updated repository to the server.
 
@@ -246,22 +247,56 @@ rclone check "$ALL_DIR" \
   --one-way
 ```
 
-## 7. Test both final predictors on held-out questions
+## 7. Select a cautious threshold on validation, then test once
 
-Run this only after both training runs finish. The test questions were kept out
-of training and validation. The evaluator loads each model's saved
-training-only normalization and uses the fixed 0.5 threshold; it does not tune
-the model or threshold using test data.
+Run this after both training runs finish. The example sets a maximum 10%
+validation false-skip rate: at most 10% of answer-sensitive validation rows may
+be predicted low-value. Treat this as a research safety target to predeclare,
+not a guaranteed result. Each model gets its own threshold from validation
+only; the selector does not read test data.
 
 ```bash
-export FINAL_EVAL="$PSSN_DATA/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer"
-export ALL_EVAL="$PSSN_DATA/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers"
+export FINAL_EVAL="$PSSN_DATA/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer-conservative"
+export ALL_EVAL="$PSSN_DATA/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers-conservative"
+mkdir -p "$FINAL_EVAL" "$ALL_EVAL"
 
+python -u -m src.black_hole.sentence_threshold_v2 \
+  --data-dir "$ACT_DIR" \
+  --checkpoint "$FINAL_DIR/best_model.pt" \
+  --split-jsonl "$ACT_DIR/validation.jsonl" \
+  --output "$FINAL_EVAL/threshold_selection.json" \
+  --max-false-skip-rate 0.10 \
+  --device cuda 2>&1 | tee "$LOG_DIR/threshold-final-layer.log"
+
+python -u -m src.black_hole.sentence_threshold_v2 \
+  --data-dir "$ACT_DIR/all_layers" \
+  --checkpoint "$ALL_DIR/best_model.pt" \
+  --split-jsonl "$ACT_DIR/validation.jsonl" \
+  --output "$ALL_EVAL/threshold_selection.json" \
+  --max-false-skip-rate 0.10 \
+  --device cuda 2>&1 | tee "$LOG_DIR/threshold-all-layers.log"
+
+cat "$FINAL_EVAL/threshold_selection.json"
+cat "$ALL_EVAL/threshold_selection.json"
+```
+
+Check `validation_metrics_at_selected_threshold` in each file, especially
+`predicted_low_value_count` and `recall_low_value`. If the cap leaves almost no
+sentences predicted low-value, the model is not useful under this safety
+target. Decide the acceptable safety/coverage trade-off before inspecting test
+results.
+
+After freezing both threshold files, test each predictor once. The evaluator
+checks that the threshold file matches the checkpoint and validation data,
+then applies it to the untouched question-held-out test split.
+
+```bash
 python -u -m src.black_hole.sentence_evaluation_v2 \
   --data-dir "$ACT_DIR" \
   --checkpoint "$FINAL_DIR/best_model.pt" \
   --split-jsonl "$ACT_DIR/test.jsonl" \
   --output-dir "$FINAL_EVAL" \
+  --threshold-selection "$FINAL_EVAL/threshold_selection.json" \
   --device cuda 2>&1 | tee "$LOG_DIR/evaluate-final-layer.log"
 
 python -u -m src.black_hole.sentence_evaluation_v2 \
@@ -269,30 +304,31 @@ python -u -m src.black_hole.sentence_evaluation_v2 \
   --checkpoint "$ALL_DIR/best_model.pt" \
   --split-jsonl "$ACT_DIR/test.jsonl" \
   --output-dir "$ALL_EVAL" \
+  --threshold-selection "$ALL_EVAL/threshold_selection.json" \
   --device cuda 2>&1 | tee "$LOG_DIR/evaluate-all-layers.log"
 ```
 
 Each evaluation writes `test_evaluation_summary.json` and
-`test_predictions.jsonl`. The summary includes accuracy, low-value precision,
-recall and F1, ROC-AUC, PR-AUC, confusion matrix, and the rate at which
-answer-sensitive examples would be wrongly predicted as low-value. It also
-checks that checkpoint training hashes, test rows, labels, and question groups
-match the saved files.
+`test_predictions.jsonl`. Metrics include accuracy, low-value precision,
+recall and F1, ROC-AUC, PR-AUC, confusion matrix, and answer-sensitive
+false-skip rate. Reports record `threshold_source: validation_only`; test data
+did not select the threshold. The evaluator also checks that checkpoint
+training hashes, test rows, labels, and question groups match the saved files.
 
 Copy and verify the test outputs in Drive:
 
 ```bash
 rclone copy "$FINAL_EVAL" \
-  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer \
+  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer-conservative \
   --progress --checksum
 rclone check "$FINAL_EVAL" \
-  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer \
+  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer-conservative \
   --one-way
 rclone copy "$ALL_EVAL" \
-  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers \
+  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers-conservative \
   --progress --checksum
 rclone check "$ALL_EVAL" \
-  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers \
+  gdrive:PSSN2/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers-conservative \
   --one-way
 ```
 

@@ -5,5 +5,9 @@
 torch @ https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2/torch-2.9.1%2Brocm7.2.0.lw.git7e1940d4-cp312-cp312-linux_x86_64.whl
 triton @ https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2/triton-3.5.1%2Brocm7.2.0.gita272dfa8-cp312-cp312-linux_x86_64.whl
 numpy==1.26.4
+# Keep the ROCm server's NumPy 1.x runtime compatible with the Hugging Face
+# dataset loader; newer datasets/PyArrow releases may require NumPy 2.x.
+datasets==3.6.0
+pyarrow==19.0.1
 jupyterlab>=4,<5
 ipykernel>=6,<8

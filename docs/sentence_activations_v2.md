@@ -47,28 +47,53 @@ on the same held-out questions.
 
 ## Test the trained V2 predictor
 
-After training, use the V2 row-level evaluator. It uses the checkpoint's saved
-training normalization and a fixed 0.5 threshold, without test-time tuning.
-Run it once for each model:
+After training, choose a threshold from the validation split only, then use the
+V2 row-level evaluator on the held-out test split. The example uses a
+predeclared maximum 10% validation false-skip rate. This is a safety/coverage
+trade-off: verify validation recall remains useful before proceeding. Run the
+selection separately for each model:
+
+```bash
+python -m src.black_hole.sentence_threshold_v2 \
+  --data-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2" \
+  --checkpoint "PSSN/artifacts/black_hole/sentence-training-5000-v2/training-final-layer/best_model.pt" \
+  --split-jsonl "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/validation.jsonl" \
+  --output "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer/threshold_selection.json" \
+  --max-false-skip-rate 0.10
+
+python -m src.black_hole.sentence_threshold_v2 \
+  --data-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/all_layers" \
+  --checkpoint "PSSN/artifacts/black_hole/sentence-training-5000-v2/training-all-layers/best_model.pt" \
+  --split-jsonl "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/validation.jsonl" \
+  --output "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers/threshold_selection.json" \
+  --max-false-skip-rate 0.10
+```
+
+Inspect `validation_metrics_at_selected_threshold`; if the low-value recall is
+near zero, the chosen safety cap leaves too little useful coverage. Freeze the
+threshold before running test evaluation:
 
 ```bash
 python -m src.black_hole.sentence_evaluation_v2 \
   --data-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2" \
   --checkpoint "PSSN/artifacts/black_hole/sentence-training-5000-v2/training-final-layer/best_model.pt" \
   --split-jsonl "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/test.jsonl" \
-  --output-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer"
+  --output-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer" \
+  --threshold-selection "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-final-layer/threshold_selection.json"
 
 python -m src.black_hole.sentence_evaluation_v2 \
   --data-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/all_layers" \
   --checkpoint "PSSN/artifacts/black_hole/sentence-training-5000-v2/training-all-layers/best_model.pt" \
   --split-jsonl "PSSN/artifacts/black_hole/sentence-training-5000-v2/activations-v2/test.jsonl" \
-  --output-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers"
+  --output-dir "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers" \
+  --threshold-selection "PSSN/artifacts/black_hole/sentence-training-5000-v2/evaluation-all-layers/threshold_selection.json"
 ```
 
 Outputs are `test_evaluation_summary.json` and `test_predictions.jsonl`.
 Metrics include accuracy, precision/recall/F1 for low-value sentences, ROC-AUC,
 PR-AUC, confusion matrix, and answer-sensitive false-skip rate. The test rows
-are question-disjoint from training and validation. This is held-out evaluation
+are question-disjoint from training and validation. The threshold was selected
+on validation only; test results do not tune it. This is held-out evaluation
 within the supplied dataset, not an external-domain test; transferred labels
 have not been independently validated for Qwen3.
 
