@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import os
 import platform
@@ -77,18 +78,56 @@ def environment():
     }
 
 
+def execution_fingerprint():
+    """Hash the parts that run Qwen, excluding parser and labeling code."""
+    material = "\n".join((
+        MODEL_ID, MODEL_REVISION, PROTOCOL,
+        inspect.getsource(load_model), inspect.getsource(Bypass), inspect.getsource(generate),
+    ))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def prepare_manifest(directory, config):
     """Reject resume when inputs/settings/code change; never mix runs silently."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "manifest.json"
     identity = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
+    current_environment = environment()
     if path.exists():
         old = read_json(path)
-        if old["identity"] != identity or old["environment"]["code_sha256"] != environment()["code_sha256"]:
-            raise ValueError("Run configuration or V3 code changed. Use a new output directory.")
+        if old["identity"] != identity:
+            raise ValueError("Run configuration changed. Use a new output directory.")
+        current_execution = execution_fingerprint()
+        previous_execution = old.get("execution_fingerprint")
+        old_hashes = old["environment"].get("code_sha256", {})
+        current_hashes = current_environment["code_sha256"]
+        changed_files = {
+            name for name in set(old_hashes) | set(current_hashes)
+            if old_hashes.get(name) != current_hashes.get(name)
+        }
+        # Permit upgrading the answer parser/label runner for existing saved
+        # trials, but only when the Qwen loading, bypass and generation code is
+        # unchanged. Record both code versions in the manifest for the audit.
+        if previous_execution is not None and previous_execution != current_execution:
+            raise ValueError("Qwen execution code changed. Use a new output directory.")
+        if previous_execution is None and changed_files - {"common.py", "label.py"}:
+            raise ValueError("V3 execution files changed. Use a new output directory.")
+        if changed_files or previous_execution is None:
+            history = old.setdefault("code_history", [])
+            history.append({
+                "recorded_unix": time.time(),
+                "previous_code_sha256": old_hashes,
+                "migration": "Updated answer parsing/label runner; Qwen execution fingerprint unchanged.",
+            })
+            old["environment"]["code_sha256"] = current_hashes
+            old["execution_fingerprint"] = current_execution
+            atomic_json(path, old)
         return old
-    result = {"identity": identity, "config": config, "environment": environment()}
+    result = {
+        "identity": identity, "config": config, "environment": current_environment,
+        "execution_fingerprint": execution_fingerprint(), "code_history": [],
+    }
     atomic_json(path, result)
     return result
 
@@ -148,8 +187,12 @@ def load_model(revision=MODEL_REVISION):
 
 
 def parsed_answer(text):
-    """Require the requested final-answer marker; don't score an intermediate number."""
-    matches = re.findall(r"(?im)^\s*FINAL\s*:\s*([-+]?\d[\d,]*(?:\.\d+)?)\s*[.!]?\s*$", text)
+    """Read the requested final-answer line, with or without Markdown bold."""
+    matches = re.findall(
+        r"(?im)^\s*(?:\*\*|__)?\s*FINAL\s*:\s*"
+        r"(?:[$£€]\s*)?([-+]?\d[\d,]*(?:\.\d+)?)\s*(?:\*\*|__)?\s*[.!]?\s*$",
+        text,
+    )
     return matches[-1].replace(",", "") if matches else None
 
 
@@ -164,12 +207,29 @@ def correct_answer(answer, reference):
 
 def trial_label(baseline, bypassed):
     if not baseline["complete"] or not baseline["correct"]:
-        return -1, "baseline_not_complete_correct"
+        return -1, baseline_unscored_reason(baseline)
     if not bypassed["complete"] or bypassed["extracted_answer"] is None:
         return -1, "bypass_incomplete_or_missing_final_answer"
     if bypassed["token_mlp_evaluations_skipped"] == 0:
         return -1, "no_decode_intervention_executed"
     return (1, "answer_preserved") if bypassed["correct"] else (0, "answer_changed_to_wrong")
+
+
+def baseline_unscored_reason(baseline):
+    if not baseline["complete"]:
+        return "baseline_incomplete"
+    if baseline.get("extracted_answer") is None:
+        return "baseline_final_answer_not_parsed"
+    return "baseline_answer_incorrect"
+
+
+def refresh_answer_result(result, reference_answer):
+    """Recompute parsed answer/correctness from saved text after parser fixes."""
+    result = dict(result)
+    answer = parsed_answer(result.get("response", ""))
+    result["extracted_answer"] = answer
+    result["correct"] = bool(result.get("complete") and correct_answer(answer, reference_answer))
+    return result
 
 
 class Controller(nn.Module):

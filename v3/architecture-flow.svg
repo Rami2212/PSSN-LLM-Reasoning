@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title desc">
+  <title id="title">PSSN Qwen3 controller and MLP bypass architecture</title>
+  <desc id="desc">The question is prefetched through all 36 Qwen3 layers. A small controller scores nine groups of four MLPs using last-prompt-token activations, selects up to four groups, and sets GPU skip flags. During cached answer decoding all attention layers run, while flagged MLPs are bypassed. The output is compared with normal generation.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1,1 L11,6 L1,11 Z" fill="#40536b"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #17283d; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 18px; fill: #52657a; }
+      .heading { font-size: 21px; font-weight: 700; }
+      .body { font-size: 17px; }
+      .small { font-size: 15px; }
+      .tiny { font-size: 13px; }
+      .box { stroke-width: 2; rx: 16; }
+      .arrow { stroke: #40536b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke-dasharray: 8 7; }
+    </style>
+  </defs>
+  <rect width="1600" height="1120" fill="#f5f8fc"/>
+  <text x="64" y="62" class="title">PSSN: controller-guided MLP bypass in Qwen3-4B</text>
+  <text x="64" y="94" class="subtitle">What runs normally, what the controller decides, and what is bypassed during answer generation</text>
+
+  <!-- Stage 1: input -->
+  <rect x="64" y="132" width="280" height="126" class="box" fill="#e8f1ff" stroke="#6a93cc"/>
+  <text x="88" y="168" class="heading">1. Input</text>
+  <text x="88" y="201" class="body">GSM8K question + fixed</text>
+  <text x="88" y="226" class="body">answer-format prompt</text>
+
+  <!-- Stage 2: prefill -->
+  <rect x="395" y="132" width="620" height="240" class="box" fill="#eaf7f0" stroke="#62a77a"/>
+  <text x="425" y="168" class="heading">2. Prompt prefill — full model runs</text>
+  <text x="425" y="199" class="body">All 36 transformer layers process the prompt normally.</text>
+  <g transform="translate(425 220)">
+    <rect x="0" y="0" width="145" height="86" rx="10" fill="#ffffff" stroke="#88b99a"/>
+    <text x="16" y="31" class="body" font-weight="700">Layer 1</text>
+    <text x="16" y="58" class="small">Attention + MLP</text>
+    <text x="16" y="78" class="tiny">both run</text>
+    <text x="158" y="52" class="heading">···</text>
+    <rect x="205" y="0" width="145" height="86" rx="10" fill="#ffffff" stroke="#88b99a"/>
+    <text x="221" y="31" class="body" font-weight="700">Layer 18</text>
+    <text x="221" y="58" class="small">Attention + MLP</text>
+    <text x="221" y="78" class="tiny">both run</text>
+    <text x="363" y="52" class="heading">···</text>
+    <rect x="410" y="0" width="145" height="86" rx="10" fill="#ffffff" stroke="#88b99a"/>
+    <text x="426" y="31" class="body" font-weight="700">Layer 36</text>
+    <text x="426" y="58" class="small">Attention + MLP</text>
+    <text x="426" y="78" class="tiny">both run</text>
+  </g>
+  <rect x="1050" y="132" width="486" height="240" class="box" fill="#fff7e8" stroke="#d5a542"/>
+  <text x="1080" y="168" class="heading">Capture for the controller</text>
+  <text x="1080" y="203" class="body">At the last prompt token, collect the</text>
+  <text x="1080" y="230" class="body">MLP input activation from each layer.</text>
+  <text x="1080" y="270" class="small">This is a feature snapshot, not a stored</text>
+  <text x="1080" y="294" class="small">or directly editable “thought process.”</text>
+  <text x="1080" y="336" class="small" font-weight="700">The first answer token comes from this</text>
+  <text x="1080" y="357" class="small" font-weight="700">unchanged, full prompt pass.</text>
+
+  <path d="M344 195 H390" class="arrow"/>
+  <path d="M1015 250 H1045" class="arrow"/>
+
+  <!-- Stage 3: controller -->
+  <rect x="395" y="414" width="620" height="230" class="box" fill="#f2edff" stroke="#9574c7"/>
+  <text x="425" y="451" class="heading">3. Small controller makes one decision</text>
+  <text x="425" y="483" class="body">Build 9 group features: each group combines</text>
+  <text x="425" y="509" class="body">the captured features for 4 consecutive MLPs.</text>
+  <rect x="425" y="532" width="250" height="72" rx="10" fill="#ffffff" stroke="#b29bd6"/>
+  <text x="444" y="562" class="small" font-weight="700">Predict low-value score</text>
+  <text x="444" y="585" class="small">for each of the 9 groups</text>
+  <path d="M686 568 H735" class="arrow"/>
+  <rect x="748" y="532" width="237" height="72" rx="10" fill="#ffffff" stroke="#b29bd6"/>
+  <text x="766" y="560" class="small" font-weight="700">Threshold + select</text>
+  <text x="766" y="584" class="small">up to 4 qualifying groups</text>
+  <text x="425" y="626" class="tiny">Decision is made once after prefill; it is not re-scored for each new token.</text>
+
+  <rect x="1050" y="414" width="486" height="230" class="box" fill="#fff0f0" stroke="#d27676"/>
+  <text x="1080" y="451" class="heading">4. GPU skip flags</text>
+  <text x="1080" y="484" class="body">Selected groups set flags for their</text>
+  <text x="1080" y="510" class="body">four MLPs each.</text>
+  <text x="1080" y="550" class="small">At most 4 × 4 = 16 of 36 MLPs</text>
+  <text x="1080" y="574" class="small">can be bypassed per later token.</text>
+  <text x="1080" y="614" class="small" font-weight="700">Attention is never bypassed here.</text>
+  <path d="M1015 526 H1045" class="arrow"/>
+
+  <!-- Stage 5: autoregressive decode -->
+  <rect x="64" y="690" width="1472" height="276" class="box" fill="#ffffff" stroke="#68819c"/>
+  <text x="96" y="731" class="heading">5. Cached answer decoding — repeated for each later token</text>
+  <text x="96" y="760" class="small">The model processes its growing answer one token at a time. KV cache is reused; controller flags stay fixed for this answer.</text>
+  <rect x="100" y="796" width="228" height="112" rx="12" fill="#e8f1ff" stroke="#6a93cc" stroke-width="2"/>
+  <text x="124" y="831" class="body" font-weight="700">New token enters</text>
+  <text x="124" y="860" class="small">from the prompt or</text>
+  <text x="124" y="883" class="small">previous answer token</text>
+
+  <rect x="375" y="796" width="320" height="112" rx="12" fill="#eaf7f0" stroke="#62a77a" stroke-width="2"/>
+  <text x="400" y="831" class="body" font-weight="700">All 36 attention layers run</text>
+  <text x="400" y="861" class="small">Attention + cached context</text>
+  <text x="400" y="884" class="small">are kept intact</text>
+
+  <rect x="742" y="796" width="344" height="112" rx="12" fill="#fff7e8" stroke="#d5a542" stroke-width="2"/>
+  <text x="766" y="831" class="body" font-weight="700">Each layer checks its fixed flag</text>
+  <text x="766" y="861" class="small">Flag OFF: run that layer’s MLP</text>
+  <text x="766" y="884" class="small">Flag ON: bypass MLP; use zero output</text>
+
+  <rect x="1133" y="796" width="340" height="112" rx="12" fill="#e8f1ff" stroke="#6a93cc" stroke-width="2"/>
+  <text x="1157" y="831" class="body" font-weight="700">Residual path + output head</text>
+  <text x="1157" y="861" class="small">produce the next answer token</text>
+  <text x="1157" y="884" class="small">then repeat until stop/cap</text>
+
+  <path d="M328 852 H369" class="arrow"/>
+  <path d="M695 852 H736" class="arrow"/>
+  <path d="M1086 852 H1127" class="arrow"/>
+  <path d="M1304 916 C1304 950 212 950 212 916" class="arrow dash"/>
+  <text x="622" y="944" class="tiny">loop for each generated token</text>
+
+  <!-- Stage 6: evaluation -->
+  <rect x="64" y="998" width="1472" height="86" rx="15" fill="#17283d"/>
+  <text x="96" y="1034" font-size="20" font-weight="700" fill="#ffffff">6. Compare on unseen questions</text>
+  <text x="96" y="1062" font-size="16" fill="#e7eef7">Normal Qwen vs controller-guided Qwen: answer accuracy, generated tokens, time, memory, and estimated MLP work avoided.</text>
+  <text x="1100" y="1034" font-size="14" font-weight="700" fill="#ffd98c">Important:</text>
+  <text x="1100" y="1058" font-size="14" fill="#ffffff">group safety must be measured;</text>
+  <text x="1100" y="1077" font-size="14" fill="#ffffff">single-group labels do not guarantee it.</text>
+
+  <!-- Data/control flows -->
+  <path d="M730 372 V407" class="arrow"/>
+  <path d="M1290 644 V670 H910 V684" class="arrow"/>
+  <text x="1066" y="672" class="tiny">one-time GPU flags</text>
+</svg>

@@ -14,7 +14,8 @@ import numpy as np
 
 from .common import (MODEL_ID, PROTOCOL, atomic_json, digest, generate,
                      generation_args, load_model, prepare_manifest, questions,
-                     read_json, status, trial_label)
+                     read_json, refresh_answer_result, status, trial_label,
+                     baseline_unscored_reason)
 
 
 def collect(args, excluded_keys=()):
@@ -67,15 +68,37 @@ def collect(args, excluded_keys=()):
                 temp = directory / "features.tmp.npz"
                 np.savez_compressed(temp, features=features.astype(np.float32))
                 os.replace(temp, features_path)
-                atomic_json(baseline_path, baseline)
+            baseline = refresh_answer_result(baseline, q["reference_answer"])
+            atomic_json(baseline_path, baseline)
             trials_done += 1
             labels, reasons = [], []
+            if not baseline["complete"] or not baseline["correct"]:
+                reason = baseline_unscored_reason(baseline)
+                # Keep any old raw bypass responses for audit, updating their
+                # parsed-answer fields, but don't spend GPU on missing trials.
+                for layer in range(layer_count):
+                    path = directory / f"skip_{layer:02d}.json"
+                    if path.exists():
+                        saved = refresh_answer_result(read_json(path), q["reference_answer"])
+                        atomic_json(path, saved)
+                labels = [-1] * layer_count
+                reasons = [reason] * layer_count
+                atomic_json(directory / "labels.json", {
+                    "question_id": q["question_id"], "question_key": q["question_key"],
+                    "labels": labels, "label_reasons": reasons,
+                    "feature_sha256": digest(features_path),
+                    "note": "Baseline was not complete and correct; no layer labels are usable.",
+                })
+                completed += 1
+                print(f"{q['question_id']}: baseline unusable ({reason}); skipped remaining layer trials.", flush=True)
+                continue
             for layer in range(layer_count):
                 path = directory / f"skip_{layer:02d}.json"
                 status(args.output_dir, status="running", phase="bypass", question=q["question_id"],
                        layer=layer, saved_trials=trials_done, total_trials=total_trials)
                 if path.exists():
-                    result = read_json(path)
+                    result = refresh_answer_result(read_json(path), q["reference_answer"])
+                    atomic_json(path, result)
                 else:
                     result, _ = generate(tokenizer, model, q, args.max_new_tokens, args.seed, forced=layer)
                     atomic_json(path, result)
