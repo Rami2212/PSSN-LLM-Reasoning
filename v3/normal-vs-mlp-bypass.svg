@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1240" viewBox="0 0 1800 1240" role="img" aria-labelledby="title desc">
+  <title id="title">Normal Qwen flow versus PSSN MLP-group bypass flow</title>
+  <desc id="desc">Two-column architecture diagram. Normal Qwen runs attention and MLP in all 36 transformer layers for prompt processing and every generated token. The updated PSSN flow first runs the prompt normally, captures MLP input features, uses a controller to choose up to four groups of four MLPs, then during cached decoding runs all attention and bypasses only selected MLPs.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M1,1 L11,6 L1,11 Z" fill="#40536b"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #17283d; }
+      .title { font-size: 34px; font-weight: 700; }
+      .sub { font-size: 18px; fill: #53677d; }
+      .coltitle { font-size: 25px; font-weight: 700; }
+      .head { font-size: 18px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; }
+      .tiny { font-size: 12px; }
+      .box { stroke-width: 2; rx: 14; }
+      .arrow { stroke: #40536b; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .loop { stroke: #8291a4; stroke-width: 2; stroke-dasharray: 8 6; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1800" height="1240" fill="#f3f6fa"/>
+  <text x="60" y="58" class="title">Inside Qwen: normal generation vs your updated MLP skipping</text>
+  <text x="60" y="88" class="sub">Both generate the answer token by token. Your controller changes selected MLP computations; it does not remove written steps.</text>
+
+  <!-- Left column -->
+  <rect x="48" y="122" width="830" height="1058" rx="22" fill="#ffffff" stroke="#9aaabc" stroke-width="2"/>
+  <rect x="48" y="122" width="830" height="70" rx="22" fill="#e9eff6"/>
+  <text x="82" y="166" class="coltitle">1. Normal Qwen flow</text>
+  <text x="82" y="224" class="body">The question becomes tokens, then passes through the model.</text>
+
+  <rect x="274" y="251" width="380" height="72" class="box" fill="#edf4ff" stroke="#7196c5"/>
+  <text x="390" y="281" class="head">Question tokens</text>
+  <text x="363" y="304" class="small">embedding turns tokens into vectors</text>
+  <path d="M464 324 V346" class="arrow"/>
+
+  <rect x="130" y="356" width="670" height="448" class="box" fill="#f8fbff" stroke="#8098b4"/>
+  <text x="164" y="391" class="head">Transformer stack — 36 layers</text>
+  <text x="164" y="418" class="small">Every layer runs both attention and its MLP.</text>
+
+  <rect x="176" y="446" width="575" height="284" rx="16" fill="#ffffff" stroke="#b5c2d0"/>
+  <text x="204" y="478" class="head">One decoder layer (repeated 36 times)</text>
+  <rect x="210" y="498" width="507" height="62" rx="10" fill="#e8f1ff" stroke="#7196c5"/>
+  <text x="366" y="524" class="body" font-weight="700">RMSNorm → Self-attention</text>
+  <text x="337" y="547" class="tiny">uses prompt / cached context</text>
+  <path d="M464 562 V579" class="arrow"/>
+  <rect x="210" y="589" width="507" height="50" rx="10" fill="#f1f4f8" stroke="#a9b5c3"/>
+  <text x="350" y="620" class="body">Add residual connection</text>
+  <path d="M464 641 V657" class="arrow"/>
+  <rect x="210" y="666" width="507" height="48" rx="10" fill="#eaf7f0" stroke="#73aa84"/>
+  <text x="366" y="696" class="body" font-weight="700">RMSNorm → MLP → residual</text>
+
+  <text x="169" y="770" class="small">After layer 36: final norm → output head → next token</text>
+  <path d="M464 806 V832" class="arrow"/>
+  <rect x="235" y="842" width="460" height="78" class="box" fill="#fff6e7" stroke="#d2a447"/>
+  <text x="361" y="874" class="head">Predict next token</text>
+  <text x="305" y="899" class="small">repeat until answer ends or token cap</text>
+  <path d="M695 883 C790 883 794 340 680 340" class="loop"/>
+  <text x="716" y="615" class="tiny" transform="rotate(-90 716 615)">next generated token goes through the stack</text>
+
+  <rect x="112" y="960" width="702" height="144" rx="14" fill="#f1f4f8" stroke="#a9b5c3"/>
+  <text x="144" y="995" class="head">What it means</text>
+  <text x="144" y="1026" class="body">• All 36 attention modules run.</text>
+  <text x="144" y="1055" class="body">• All 36 MLP modules run.</text>
+  <text x="144" y="1084" class="body">• No controller makes a skip decision.</text>
+
+  <!-- Right column -->
+  <rect x="922" y="122" width="830" height="1058" rx="22" fill="#ffffff" stroke="#9aaabc" stroke-width="2"/>
+  <rect x="922" y="122" width="830" height="70" rx="22" fill="#e9eff6"/>
+  <text x="956" y="166" class="coltitle">2. Your updated flow: MLP-group bypass</text>
+  <text x="956" y="224" class="body">The prompt pass is full. The controller chooses MLPs to bypass later.</text>
+
+  <rect x="963" y="250" width="335" height="82" class="box" fill="#edf4ff" stroke="#7196c5"/>
+  <text x="1047" y="281" class="head">Question tokens</text>
+  <text x="1017" y="307" class="small">full prompt prefill runs normally</text>
+  <path d="M1130 333 V351" class="arrow"/>
+
+  <rect x="963" y="361" width="335" height="135" class="box" fill="#eaf7f0" stroke="#73aa84"/>
+  <text x="987" y="394" class="head">Capture prompt features</text>
+  <text x="987" y="425" class="small">last prompt token's MLP input</text>
+  <text x="987" y="448" class="small">from each of the 36 layers</text>
+  <text x="987" y="477" class="tiny">No layer is skipped in this pass.</text>
+
+  <path d="M1299 428 H1320" class="arrow"/>
+  <rect x="1330" y="361" width="378" height="135" class="box" fill="#f2edff" stroke="#9574c7"/>
+  <text x="1360" y="394" class="head">Small controller</text>
+  <text x="1360" y="425" class="small">scores 9 groups (4 MLPs each)</text>
+  <text x="1360" y="448" class="small">selects up to 4 above threshold</text>
+  <text x="1360" y="477" class="tiny">sets fixed skip flags for this answer</text>
+
+  <path d="M1519 498 V523 H1133 V548" class="arrow"/>
+  <text x="1332" y="520" class="tiny">decision is made once after prefill</text>
+
+  <rect x="963" y="558" width="745" height="394" class="box" fill="#f8fbff" stroke="#8098b4"/>
+  <text x="995" y="593" class="head">Cached decoding — repeated for each later answer token</text>
+  <text x="995" y="621" class="small">Each token still goes through the 36-layer stack.</text>
+
+  <rect x="1000" y="650" width="674" height="92" rx="12" fill="#e8f1ff" stroke="#7196c5"/>
+  <text x="1030" y="684" class="head">Every layer's attention runs</text>
+  <text x="1030" y="713" class="small">attention, KV cache, and residual path stay active</text>
+
+  <path d="M1337 744 V761" class="arrow"/>
+  <rect x="1000" y="771" width="674" height="127" rx="12" fill="#fff7e8" stroke="#d2a447"/>
+  <text x="1030" y="804" class="head">Then each layer's MLP follows its flag</text>
+  <rect x="1030" y="822" width="285" height="57" rx="9" fill="#eaf7f0" stroke="#73aa84"/>
+  <text x="1052" y="847" class="small" font-weight="700">Not selected: MLP runs</text>
+  <text x="1052" y="868" class="tiny">normal computation</text>
+  <rect x="1340" y="822" width="304" height="57" rx="9" fill="#fff0f0" stroke="#d27676"/>
+  <text x="1360" y="847" class="small" font-weight="700">Selected: MLP bypassed</text>
+  <text x="1360" y="868" class="tiny">returns zero; residual remains</text>
+
+  <text x="995" y="928" class="small">Final norm + output head predict the next token; repeat until answer ends or token cap.</text>
+  <path d="M1674 872 C1712 872 1712 540 1688 540" class="loop"/>
+
+  <rect x="963" y="976" width="745" height="128" rx="14" fill="#f1f4f8" stroke="#a9b5c3"/>
+  <text x="995" y="1010" class="head">What it can save</text>
+  <text x="995" y="1040" class="body">• Up to 4 groups × 4 MLPs = 16 of 36 MLPs on later tokens.</text>
+  <text x="995" y="1067" class="body">• Reduces MLP computation, not necessarily answer-token count.</text>
+  <text x="995" y="1094" class="small">First generated token uses the unchanged full prompt pass.</text>
+
+  <text x="60" y="1212" class="tiny">PSSN max-four mode: group scores are learned from isolated group tests; combined skips are measured in the final comparison.</text>
+</svg>
