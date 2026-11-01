@@ -190,6 +190,19 @@ class BlockBypass:
                 "GPU-side bypass requires torch.cond and torch.compile; this PyTorch build does not provide both."
             )
 
+        # All per-layer wrappers below share the same Python code object, while
+        # each closes over a different Qwen MLP ``forward`` function. Dynamo
+        # therefore sees one valid specialization per decoder layer. Its default
+        # recompile limit (8) is too small for Qwen3-4B's 36 layers and otherwise
+        # raises FailOnRecompileLimitHit around layer 9. Allow one specialization
+        # per layer plus a small margin; this does not change routing or outputs.
+        dynamo_config = getattr(getattr(torch, "_dynamo", None), "config", None)
+        current_recompile_limit = getattr(dynamo_config, "recompile_limit", None)
+        if current_recompile_limit is not None:
+            dynamo_config.recompile_limit = max(
+                int(current_recompile_limit), len(self.layers) + 8
+            )
+
         for index, layer in enumerate(self.layers):
             module = layer.mlp
             original = module.forward
@@ -267,12 +280,22 @@ class BlockPolicy:
 
 
 def generate_group(tokenizer, model, question, max_new_tokens, seed,
-                   forced_group=None, policy=None, capture=False):
+                   forced_group=None, policy=None, capture=False,
+                   concise_answer=False):
     seed_all(seed)
+    if concise_answer:
+        instruction = (
+            "Solve the problem. Output only the final numeric answer on one line, "
+            "exactly as FINAL: <number>. Do not include an explanation or other text."
+        )
+    else:
+        instruction = (
+            "Solve carefully. You may use a short calculation. "
+            "End with a line exactly: FINAL: <number>."
+        )
     prompt = tokenizer.apply_chat_template(
         [{"role": "user", "content": (
-            question["question"] + "\nSolve carefully. You may use a short calculation. "
-            "End with a line exactly: FINAL: <number>."
+            question["question"] + "\n" + instruction
         )}], tokenize=False, add_generation_prompt=True, enable_thinking=False,
     )
     inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(model.device)
