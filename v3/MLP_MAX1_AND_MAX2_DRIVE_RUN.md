@@ -1,14 +1,17 @@
-# MI300X / ROCm 7.2: run the 100-question MLP max-four comparison
+# MI300X / ROCm 7.2: compare max-one and max-two MLP bypasses
 
 This reuses the saved four-MLP-group controller. It bypasses selected MLP
 modules only; it does not bypass whole transformer layers. The controller
 checkpoint is trained for MLP-group actions.
 
 The run compares normal Qwen generation with controller-guided generation on
-100 fresh GSM8K test questions: 200 answer generations plus warm-ups. It
-measures answer correctness, output tokens, wall time, peak memory, and
-estimated MLP matrix work avoided. Training tested groups individually, so
-combining up to four remains an exploratory test.
+100 fresh GSM8K test questions: 200 answer generations plus warm-ups. It uses
+greedy decoding, asks for only the final numeric answer, and caps each answer
+at 256 tokens. Both modes use exactly the same prompt and token cap. This is a
+new experimental condition: the changed prompt may shift controller features,
+so do not combine it with the prior 1,024-token results. The 256-token cap can
+still truncate an answer; inspect completion rate as well as accuracy. Training
+tested groups individually, so combining groups remains exploratory.
 
 ## 1. Create and set up the server
 
@@ -86,13 +89,13 @@ The benchmark needs the MLP controller and the prior unseen question IDs.
 Only these artifacts are copied from Drive, not the entire PSSN2 folder.
 
 ~~~~bash
-tmux new-session -A -s pssn-v3-max4
+tmux new-session -A -s pssn-v3-max12
 cd /root/pssn-work/PSSN-LLM-Reasoning
 source .venv-v3-rocm72/bin/activate
 export V3_ROOT=/root/pssn-work/PSSN2/v3
 export CHECKPOINT="$V3_ROOT/block4-pilot-100/training/controller.pt"
 export PRIOR_UNSEEN="$V3_ROOT/block4-pilot-100/unseen"
-export OUT_DIR="$V3_ROOT/block4-max4-100q-final-v1-controller"
+export OUT_DIR="$V3_ROOT/block4-max1-and-max2-100q-concise-256-v1"
 mkdir -p "$V3_ROOT/block4-pilot-100/training" "$PRIOR_UNSEEN"
 rclone copy gdrive:PSSN2/v3/block4-pilot-100/training \
   "$V3_ROOT/block4-pilot-100/training" --progress --checksum
@@ -115,11 +118,11 @@ pulled from Drive by the rclone commands above.
 python -u -m v3.block_benchmark \
   --checkpoint "$CHECKPOINT" \
   --unseen-dir "$PRIOR_UNSEEN" \
-  --output-dir "$OUT_DIR/benchmark-max4-100q" \
+  --output-dir "$OUT_DIR/benchmark-max1-100q" \
   --rows 100 --split test --seed 42 \
-  --max-new-tokens 1024 --max-removal-groups 4 \
+  --max-new-tokens 256 --concise-answer --max-removal-groups 1 \
   --revision 1cfa9a7208912126459214e8b04321603b3df60c \
-  2>&1 | tee -a "$OUT_DIR/logs/benchmark-max4-100q.log"
+  2>&1 | tee -a "$OUT_DIR/logs/benchmark-max1-100q.log"
 ~~~~
 
 The benchmark excludes questions used for controller training and the prior
@@ -129,19 +132,53 @@ and one controller-guided answer for each.
 ## 6. Copy results back to Drive and check them
 
 ~~~~bash
-rclone copy "$OUT_DIR" gdrive:PSSN2/v3/block4-max4-100q-final-v1-controller \
+rclone copy "$OUT_DIR/benchmark-max1-100q" \
+  gdrive:PSSN2/v3/block4-max1-and-max2-100q-concise-256-v1/benchmark-max1-100q \
   --progress --checksum
-cat "$OUT_DIR/benchmark-max4-100q/run_status.json"
-cat "$OUT_DIR/benchmark-max4-100q/metrics.json"
+rclone copy "$OUT_DIR/logs" \
+  gdrive:PSSN2/v3/block4-max1-and-max2-100q-concise-256-v1/logs \
+  --progress --checksum
+cat "$OUT_DIR/benchmark-max1-100q/run_status.json"
+cat "$OUT_DIR/benchmark-max1-100q/metrics.json"
 ~~~~
 
-The output folder is new so it will not overwrite the earlier 10-question
-benchmark. Expect roughly 15 minutes of generation based on the previous
-10-question run; model loading, first-run compilation, and longer answers may
-add time.
+## 7. Run the max-two comparison on the same 100 questions
+
+Use the same seed and prior-unseen list so this is a paired comparison. It
+uses a separate output folder and Drive destination; it will not overwrite
+the max-one results.
+
+~~~~bash
+python -u -m v3.block_benchmark \
+  --checkpoint "$CHECKPOINT" \
+  --unseen-dir "$PRIOR_UNSEEN" \
+  --output-dir "$OUT_DIR/benchmark-max2-100q" \
+  --rows 100 --split test --seed 42 \
+  --max-new-tokens 256 --concise-answer --max-removal-groups 2 \
+  --revision 1cfa9a7208912126459214e8b04321603b3df60c \
+  2>&1 | tee -a "$OUT_DIR/logs/benchmark-max2-100q.log"
+
+rclone copy "$OUT_DIR/benchmark-max2-100q" \
+  gdrive:PSSN2/v3/block4-max1-and-max2-100q-concise-256-v1/benchmark-max2-100q \
+  --progress --checksum
+rclone copy "$OUT_DIR/logs" \
+  gdrive:PSSN2/v3/block4-max1-and-max2-100q-concise-256-v1/logs \
+  --progress --checksum
+cat "$OUT_DIR/benchmark-max2-100q/run_status.json"
+cat "$OUT_DIR/benchmark-max2-100q/metrics.json"
+~~~~
+
+The max-two option is the runner's maximum and default; pass 1 explicitly for
+the max-one comparison. The earlier max-four pilot caused one answer to run
+to the 1,024-token limit, so review combined-skip accuracy carefully.
+
+The output folder is new, so this will not overwrite earlier benchmark
+results. The prompt changed from controller-training runs, so treat the
+results as a separate exploratory comparison rather than directly comparable
+to the prior benchmark.
 
 Detach from tmux without stopping the job with Ctrl+B, then D. Reconnect with:
 
 ~~~~bash
-tmux attach -t pssn-v3-max4
+tmux attach -t pssn-v3-max12
 ~~~~

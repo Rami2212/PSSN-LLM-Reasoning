@@ -1,0 +1,10 @@
+# Install the ROCm Torch wheel separately; see SERVER_SETUP.md.
+transformers==4.57.1
+datasets==3.6.0
+pyarrow==19.0.1
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.5.2
+joblib==1.4.2
+safetensors>=0.4.5,<1
+sentencepiece>=0.2,<1

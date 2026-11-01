@@ -153,6 +153,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv-v4-rocm72/
 env/
 venv/
 ENV/

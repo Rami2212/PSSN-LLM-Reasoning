@@ -1,4 +1,4 @@
-"""Compare normal generation with up to four controller-selected MLP group bypasses."""
+"""Compare normal generation with up to two controller-selected MLP group bypasses."""
 from __future__ import annotations
 
 import argparse
@@ -12,15 +12,17 @@ from .block_common import (BLOCK4_PROTOCOL, BlockPolicy, generate_group,
 
 def main():
     parser = generation_args()
-    parser.set_defaults(rows=100, split="test")
+    parser.set_defaults(rows=100, split="test", max_new_tokens=256)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--unseen-dir", type=Path, required=True)
-    parser.add_argument("--max-removal-groups", type=int, choices=range(1, 5), default=4,
-                        help="Skip up to this many highest-scoring groups above the checkpoint threshold (default: 4)")
+    parser.add_argument("--concise-answer", action="store_true",
+                        help="Ask for only FINAL: <number>; apply identically to baseline and controller")
+    parser.add_argument("--max-removal-groups", type=int, choices=range(1, 3), default=2,
+                        help="Skip up to this many highest-scoring groups above the checkpoint threshold (default: 2; max: 2)")
     args = parser.parse_args()
     policy = BlockPolicy(args.checkpoint, max_removal_groups=args.max_removal_groups)
-    if args.revision != policy.data["model_revision"] or args.max_new_tokens != policy.data["max_new_tokens"]:
-        raise ValueError("Use checkpoint model revision and generation budget")
+    if args.revision != policy.data["model_revision"]:
+        raise ValueError("Use the model revision recorded in the controller checkpoint")
     prior = read_json(args.unseen_dir / "questions.json")
     records, revision = questions(
         args.split, args.rows, args.offset, args.dataset_revision or policy.data["dataset_revision"],
@@ -33,8 +35,13 @@ def main():
         "source_dataset": "openai/gsm8k", "split": args.split,
         "model_revision": args.revision, "dataset_revision": revision,
         "question_keys": [r["question_key"] for r in records], "seed": args.seed,
-        "max_new_tokens": args.max_new_tokens, "enable_thinking": False, "do_sample": False,
-        "prompt_protocol": "Solve carefully; optional short calculation; exact FINAL line (same as block4-label-v1)",
+        "enable_thinking": False,
+        "prompt_protocol": (
+            "numeric_answer_only_exact_FINAL_line_v1" if args.concise_answer else
+            "Solve carefully; optional short calculation; exact FINAL line (same as block4-label-v1)"
+        ),
+        "max_new_tokens": args.max_new_tokens,
+        "do_sample": False,
         "threshold": policy.threshold,
         "candidate_policy": "highest_scoring_above_threshold_nonoverlapping_four_mlp_groups_after_prefill",
         "max_removal_groups": args.max_removal_groups,
@@ -65,6 +72,7 @@ def main():
                     result, _ = generate_group(
                         tokenizer, model, question, args.max_new_tokens, args.seed,
                         policy=policy if mode == "controller" else None,
+                        concise_answer=args.concise_answer,
                     )
                     count = result["token_mlp_evaluations_skipped"]
                     result["estimated_mlp_matmul_flops_avoided"] = (
@@ -126,7 +134,7 @@ def summarize(comparisons, max_removal_groups=4):
     report["correct_to_wrong"] = sum(row["baseline"]["correct"] and not row["controller"]["correct"] for row in comparisons)
     report["wrong_to_correct"] = sum(not row["baseline"]["correct"] and row["controller"]["correct"] for row in comparisons)
     report["notes"] = [
-        "The controller selects up to the configured maximum of four-MLP groups per question, ranked by score and filtered by the checkpoint threshold.",
+        "The controller selects up to the configured maximum number of four-MLP groups per question, ranked by score and filtered by the checkpoint threshold.",
         "Training labels measure isolated group removals. This benchmark measures combined removals; their safety was not established by the training labels.",
         "Group labels cannot tell which member caused a failure. The action is the group itself.",
         "FLOPs are an analytic estimate for bypassed MLP matmuls only, not measured utilization or end-to-end speedup.",

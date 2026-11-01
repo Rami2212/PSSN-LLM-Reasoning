@@ -27,8 +27,8 @@ The 36 Qwen3-4B MLPs are divided into nine **non-overlapping groups of four**:
 `0–3`, `4–7`, `8–11`, `12–15`, `16–19`, `20–23`, `24–27`, `28–31`, and
 `32–35`. The prompt prefill runs normally. During cached answer decoding, the
 selected MLPs return zero and their surrounding residual connections
-remain active. The final benchmark chooses up to four groups per question
-(up to 16 MLPs), taking the highest scores above the checkpoint's threshold.
+remain active. The final benchmark chooses up to two groups per question
+(up to 8 MLPs), taking the highest scores above the checkpoint's threshold.
 If fewer groups pass, it skips fewer; if none pass, it skips none. Selection
 and mask construction remain on the GPU.
 
@@ -135,29 +135,29 @@ rclone copy "$V3_BLOCK4_RUN/unseen" gdrive:PSSN2/v3/block4-pilot-100-v3/unseen -
 ```
 
 5. Compare normal generation with controller-guided generation on 100 further
-   unseen questions, allowing up to four groups together (200 recorded
+   unseen questions, allowing up to two groups together (200 recorded
    generations, plus two warm-ups). The checkpoint threshold is frozen.
 
 ```bash
 python -u -m v3.block_benchmark \
   --checkpoint "$V3_BLOCK4_RUN/training/controller.pt" \
   --unseen-dir "$V3_BLOCK4_RUN/unseen" \
-  --output-dir "$V3_BLOCK4_RUN/benchmark-max4-100q" \
-  --max-removal-groups 4 \
+  --output-dir "$V3_BLOCK4_RUN/benchmark-max2-100q" \
+  --max-removal-groups 2 \
   --rows 100 --split test --seed 42 --max-new-tokens 64 \
-  2>&1 | tee -a "$V3_BLOCK4_RUN/logs/benchmark-max4-100q.log"
-rclone copy "$V3_BLOCK4_RUN/benchmark-max4-100q" gdrive:PSSN2/v3/block4-pilot-100-v3/benchmark-max4-100q --progress --checksum
+  2>&1 | tee -a "$V3_BLOCK4_RUN/logs/benchmark-max2-100q.log"
+rclone copy "$V3_BLOCK4_RUN/benchmark-max2-100q" gdrive:PSSN2/v3/block4-pilot-100-v3/benchmark-max2-100q --progress --checksum
 rclone copy "$V3_BLOCK4_RUN/logs" gdrive:PSSN2/v3/block4-pilot-100-v3/logs --progress --checksum
 ```
 
 Inspect `labels/summary.json`, `training/evaluation.json`,
-`unseen/predictor_evaluation.json`, and `benchmark-max4-100q/metrics.json`. Each
+`unseen/predictor_evaluation.json`, and `benchmark-max2-100q/metrics.json`. Each
 controller result records `selected_groups`, `selected_group_indices`,
 `selected_group_count`, and `selected_layers`. Metrics include the group-count
 histogram and actual MLP skip counts. The legacy `selected_group` field is a
 flattened layer list; use `selected_groups` to see group boundaries.
 
 Use `--max-removal-groups 1` and a separate `benchmark-max1` output folder to
-compare the single-group policy with this combined policy. The unseen
+compare the single-group policy with the two-group policy. The unseen
 and benchmark stages are small exploratory checks; they do not prove a
 publication-level accuracy or speed improvement.
