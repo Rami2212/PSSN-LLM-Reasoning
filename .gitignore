@@ -236,3 +236,4 @@ huggingface_dataset/
 .pytest-campaign-final-temp/
 .pytest-tmp-external-20261017a/
 .pytest-tmp-*/
+.codex-timeline-review/
