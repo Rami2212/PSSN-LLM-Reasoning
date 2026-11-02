@@ -183,6 +183,67 @@ This tests the same 100 questions at all three depths. Each depth trial is
 saved immediately. To resume after Ctrl+C or a process failure, run the exact
 same command. Warmups run again; existing trial files are reused.
 
+### Repeat the five-question smoke test at 28/32/36 layers
+
+This is a separate diagnostic run using the **exact five question records**
+saved by the earlier 12/24/36 smoke test. It does not overwrite that run and
+does not train a controller. All settings stay the same: model revision,
+prompt, greedy decoding, FP16 and the 1,024-token cap. It tests full depth 36
+and the closer exits 28 and 32, for 15 answer generations total.
+
+First, from PowerShell on your PC, upload the two updated source files and the
+saved question list. The list at the end is what guarantees that the same five
+questions are used:
+
+```powershell
+$repo = 'C:\Users\LOQ\Downloads\Uni\PSSN\Repository\PSSN-LLM-Reasoning'
+$server = 'root@134.199.192.72'
+ssh $server "mkdir -p /root/pssn-work/PSSN-LLM-Reasoning/v4 /root/pssn-work/PSSN2/v4/depth-text-pilot-100/smoke-labels"
+scp "$repo\v4\common.py" "${server}:/root/pssn-work/PSSN-LLM-Reasoning/v4/common.py"
+scp "$repo\v4\smoke_near_full.py" "${server}:/root/pssn-work/PSSN-LLM-Reasoning/v4/smoke_near_full.py"
+scp "$repo\v4\results\smoke-labels\questions.json" "${server}:/root/pssn-work/PSSN2/v4/depth-text-pilot-100/smoke-labels/questions.json"
+```
+
+Then connect to the server and run inside its existing V4 tmux session (or
+create the session if needed):
+
+```bash
+ssh root@134.199.192.72
+tmux new-session -A -s pssn-v4
+cd /root/pssn-work/PSSN-LLM-Reasoning
+source .venv-v4-rocm72/bin/activate
+export V4_RUN=/root/pssn-work/PSSN2/v4/depth-text-pilot-100
+export V4_REMOTE=gdrive:PSSN2/v4/depth-text-pilot-100
+mkdir -p "$V4_RUN/logs"
+set -o pipefail
+python -u -m v4.smoke_near_full \
+  --questions-file "$V4_RUN/smoke-labels/questions.json" \
+  --output-dir "$V4_RUN/smoke-near-full" \
+  --revision 1cfa9a7208912126459214e8b04321603b3df60c \
+  --max-new-tokens 1024 \
+  2>&1 | tee "$V4_RUN/logs/smoke-near-full.log"
+```
+
+Detach from tmux with **Ctrl+B**, then **D**. Reconnect with
+`tmux attach-session -t pssn-v4`. The run saves each answer as it finishes;
+after interruption, use the same command and output directory to resume. The
+summary is at `$V4_RUN/smoke-near-full/summary.json` and status at
+`$V4_RUN/smoke-near-full/run_status.json`.
+
+After it completes, archive and copy the results to Drive manually:
+
+```bash
+tar -C "$V4_RUN" -czf "$V4_RUN/smoke-near-full.tar.gz" smoke-near-full
+rclone copyto "$V4_RUN/smoke-near-full.tar.gz" "$V4_REMOTE/smoke-near-full.tar.gz" --progress --checksum --retries 3
+rclone copyto "$V4_RUN/logs/smoke-near-full.log" "$V4_REMOTE/logs/smoke-near-full.log" --progress --checksum --retries 3
+```
+
+Compare `depth_results` in the summary: answer accuracy, completion rate,
+tokens and elapsed generation time for each depth. Five questions are only a
+quick feasibility check, not a reliable estimate of general accuracy. If 28
+and 32 still fail, the frozen Qwen checkpoint likely needs early-exit
+adaptation before a larger controller-labeling run.
+
 Check `target_depth_counts` and `shallow_targets` before training. If all usable
 targets are 36, stop here: the frozen checkpoint has not demonstrated useful
 shallow exits. Training a text controller cannot fix that; early-exit model

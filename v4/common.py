@@ -25,6 +25,7 @@ DEPTHS = (12, 24, 36)
 MODEL_ID = "Qwen/Qwen3-4B"
 MODEL_REVISION = "1cfa9a7208912126459214e8b04321603b3df60c"
 PROTOCOL = "v4-question-text-prefix-depth-12-24-36-v1"
+NEAR_FULL_DEPTHS = (28, 32, 36)
 PROMPT_SUFFIX = (
     "\nSolve carefully. You may use a short calculation. "
     "End with a line exactly: FINAL: <number>."
@@ -90,7 +91,7 @@ def environment():
 def manifest(directory, config, stage):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    config = {**config, "protocol": PROTOCOL,
+    config = {**config, "protocol": config.get("protocol", PROTOCOL),
               "code_sha256": {name: digest(Path(__file__).parent / name)
                               for name in {"common.py", f"{stage}.py"}}}
     run_identity = identity(config)
@@ -99,7 +100,7 @@ def manifest(directory, config, stage):
         previous = read_json(path)
         if previous["identity"] != run_identity:
             raise ValueError("Inputs, settings or code changed. Use a NEW output directory.")
-        if stage in {"label", "benchmark"}:
+        if stage in {"label", "benchmark", "smoke_near_full"}:
             current = environment()
             if previous["environment"]["packages"] != current["packages"] or previous["environment"]["gpu"] != current["gpu"]:
                 raise ValueError("Generation environment changed. Use a new output directory.")
@@ -211,8 +212,8 @@ def prefix_depth(model, depth):
     from torch import nn
     decoder = model.model
     original = decoder.layers
-    if depth not in DEPTHS or len(original) != 36:
-        raise ValueError("Expected a full 36-layer model and depth 12, 24 or 36")
+    if not isinstance(depth, int) or not 1 <= depth <= 36 or len(original) != 36:
+        raise ValueError("Expected a full 36-layer model and a prefix depth from 1 to 36")
     configs = {id(c): c for c in (model.config, decoder.config)}
     old_counts = [(c, c.num_hidden_layers, c.layer_types) for c in configs.values()]
     try:
@@ -292,9 +293,9 @@ def generate(tokenizer, model, question, depth, config):
             "decoder_layer_token_evaluations": depth * (input_count + max(len(ids) - 1, 0))}
 
 
-def warmup(tokenizer, model, config):
+def warmup(tokenizer, model, config, depths=DEPTHS):
     warm_config = {**config, "max_new_tokens": 8}
-    for depth in DEPTHS:
+    for depth in depths:
         generate(tokenizer, model, {"question_id": "warmup", "question": "What is 17 + 25?",
                                    "reference_answer": "42"}, depth, warm_config)
 
