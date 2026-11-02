@@ -1,0 +1,10 @@
+# Install ROCm PyTorch separately as described in SERVER_SETUP.md.
+transformers==4.57.1
+datasets==3.6.0
+pyarrow==19.0.1
+numpy==1.26.4
+huggingface-hub>=0.34,<1
+safetensors>=0.4.5,<1
+scipy==1.13.1
+scikit-learn==1.5.2
+joblib==1.4.2
