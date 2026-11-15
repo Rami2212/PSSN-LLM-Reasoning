@@ -102,6 +102,7 @@ def main():
         config = {"checkpoint_sha256": digest(args.controller), "question_sha256": fingerprint(questions),
                   "rows": args.rows, "seed": args.seed, "model_revision": payload["model_revision"],
                   "dataset_revision": payload["dataset_revision"], "max_new_tokens": payload["max_new_tokens"],
+                  "prompt_format": payload["prompt_format"],
                   "examples_sha256": fingerprint(payload["demonstrations"]),
                   "order": "alternate baseline/controller first by question index"}
         source = manifest(args.output_dir, config, "test", require_same_environment=True)

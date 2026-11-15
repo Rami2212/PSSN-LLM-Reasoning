@@ -3,7 +3,7 @@
 set -euo pipefail
 run_dir="$(realpath "${1:?Usage: bash v5/controller_backup.sh RUN_DIR STAGE REMOTE}")"
 stage="${2:?Specify labels, training, evaluation, or unseen-test}"
-remote="${3:?Specify gdrive:PSSN2/v5/controller-100x3}"
+remote="${3:?Specify gdrive:PSSN2/v5/controller-1000x3}"
 case "$stage" in labels|training|evaluation|unseen-test) ;; *) printf 'Unknown stage: %s\n' "$stage" >&2; exit 2 ;; esac
 test -d "$run_dir/$stage"
 archive="$run_dir/$stage.tar.gz"

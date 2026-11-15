@@ -1,7 +1,7 @@
 # V5 server setup and smoke test
 
-For the **100-question × 3-depth labeling, controller training, evaluation,
-and unseen test**, follow [CONTROLLER_300_SERVER.md](CONTROLLER_300_SERVER.md).
+For the **1,000-question × 3-depth labeling, controller training, evaluation,
+and unseen test**, follow [CONTROLLER_1000X3_SERVER.md](CONTROLLER_1000X3_SERVER.md).
 It includes Drive backups after each stage and uses direct depths 24/28/32.
 
 Goal: run Meta's already adapted LayerSkip Llama3-8B on five GSM8K questions at
