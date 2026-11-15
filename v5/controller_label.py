@@ -1,4 +1,4 @@
-"""Label 100 GSM8K questions at each of 3 fixed depths (300 generations total)."""
+"""Label GSM8K questions at each of 3 fixed depths (1,000 questions by default)."""
 from __future__ import annotations
 
 import argparse
@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .controller_common import (DATASET_REVISION, DEPTHS, MODEL_ID, MODEL_REVISION,
+from .controller_common import (DATASET_REVISION, DEPTHS, MODEL_ID, MODEL_REVISION, PROMPT_FORMAT,
     Progress, atomic_json, checked_trial, digest, fingerprint, generate, load_model,
     make_prompt, manifest, prepare_candidates, read_json, warmup)
 
@@ -14,7 +14,7 @@ from .controller_common import (DATASET_REVISION, DEPTHS, MODEL_ID, MODEL_REVISI
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--rows", type=int, default=100,
+    parser.add_argument("--rows", type=int, default=1000,
                         help="Number of distinct questions; each gets one generation at each depth")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-new-tokens", type=int, default=1024)
@@ -42,6 +42,7 @@ def main():
                   "dataset_revision": args.dataset_revision, "dataset_split": "train",
                   "seed": args.seed, "question_count": args.rows,
                   "max_new_tokens": args.max_new_tokens, "depths": list(DEPTHS),
+                  "prompt_format": PROMPT_FORMAT,
                   "question_sha256": fingerprint(questions), "examples_sha256": fingerprint(examples),
                   "label": "complete-and-correct answer at each independently tested depth",
                   "sampling": "first seeded unique GSM8K training questions after fixed exclusions",

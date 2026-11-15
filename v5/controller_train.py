@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from .controller_common import (DEPTHS, PROTOCOL, Progress, atomic_json, digest,
+from .controller_common import (DEPTHS, PROTOCOL, PROMPT_FORMAT, Progress, atomic_json, digest,
     load_labels, manifest, model_text, read_json, route_depth, stratified_partitions)
 
 
@@ -61,6 +61,7 @@ def train(labels_dir, output_dir, seed=42):
     split_ids = {name: [r["question_id"] for r in rows] for name, rows in partitions.items()}
     config = {"label_manifest_identity": source["identity"], "selected_dataset_sha256": evidence,
               "seed": seed, "regularization_grid": list(regularization_grid),
+              "prompt_format": PROMPT_FORMAT,
               "selection": "validation routed answer accuracy; ties use lower mean depth then smaller C",
               "features": "word 1-2 and character 3-5 TF-IDF of question text plus categorical depth token",
               "routing": "predict answer preservation for each depth; choose shallowest probability >= 0.5, otherwise depth 32",
@@ -93,6 +94,7 @@ def train(labels_dir, output_dir, seed=42):
                    "model_revision": source["config"]["model_revision"],
                    "dataset_revision": source["config"]["dataset_revision"],
                    "max_new_tokens": source["config"]["max_new_tokens"],
+                   "prompt_format": source["config"]["prompt_format"],
                    "generation_seed": source["config"]["seed"],
                    "demonstrations": read_json(Path(labels_dir) / "demonstrations.json"),
                    "excluded_question_keys": [r["question_key"] for r in records],
@@ -112,7 +114,7 @@ def train(labels_dir, output_dir, seed=42):
                   "selected_validation_model": selected, "test_used_for_model_selection": False,
                   "controller_sha256": digest(output_dir / "controller.joblib"),
                   "routing": config["routing"], "features": config["features"],
-                  "limitation": "100 questions are a small pilot. Splits are question-disjoint. One greedy outcome per depth is noisy; the controller predicts observed answer preservation, not guaranteed safety."}
+                  "limitation": f"{len(records)} labeled questions are a pilot. Splits are question-disjoint. One greedy outcome per depth is noisy; the controller predicts observed answer preservation, not guaranteed safety."}
         atomic_json(output_dir / "training_summary.json", report)
     return report
 

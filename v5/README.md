@@ -1,7 +1,7 @@
-# V5: released LayerSkip model and 100-question controller pilot
+# V5: released LayerSkip model and 1,000-question controller study
 
-For the controller workflow, use [CONTROLLER_300_SERVER.md](CONTROLLER_300_SERVER.md).
-It labels 100 questions at depths 24, 28, and 32 (300 generations total),
+For the controller workflow, use [CONTROLLER_1000X3_SERVER.md](CONTROLLER_1000X3_SERVER.md).
+It labels 1,000 questions at depths 24, 28, and 32 (3,000 generations total),
 trains a question-and-depth answer-preservation predictor, evaluates it, and
 tests it live on 100 unseen questions. It includes verified Drive backups after
 each stage.

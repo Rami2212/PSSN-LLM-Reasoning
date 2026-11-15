@@ -12,13 +12,24 @@ import time
 from pathlib import Path
 
 from .smoke import (DEPTHS, MODEL_ID, STOP_STRING, Progress, atomic_json,
-                    fingerprint, make_prompt, numeric_equal, prefix_depth,
+                    fingerprint, numeric_equal, prefix_depth,
                     read_json, text_key)
 
-PROTOCOL = "v5-question-depth-outcome-controller-24-28-32-v2"
+PROTOCOL = "v5-question-depth-outcome-controller-24-28-32-v3-gsm8k-prompt"
+PROMPT_FORMAT = "gsm8k-native-question-answer-####-v2"
 MODEL_REVISION = "3b9e03eaf3cc90812a7bd2b69106b626d63bac1f"
 DATASET_REVISION = "740312add88f781978c0658806c59bc2815b9866"
 PILOT_INDICES = {1458, 3620, 6312, 4833, 5032}
+
+
+def make_prompt(question, examples):
+    """Use GSM8K's native Question/Answer and #### worked-solution format."""
+    parts = []
+    for example in examples:
+        parts.append(f"Question: {example['question']}\n"
+                     f"Answer: {example['reference_solution'].strip()}\n\n")
+    parts.append(f"Question: {question['question']}\nAnswer:")
+    return "".join(parts)
 
 
 def digest(path):
