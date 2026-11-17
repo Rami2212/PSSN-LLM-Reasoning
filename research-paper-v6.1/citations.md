@@ -9,7 +9,7 @@
 
 Mostafa Elhoushi, Akshat Shrivastava, Diana Liskovich, Basil Hosmer, Bram Wasti, Liangzhen Lai, Anas Mahmoud, Bilge Acun, Saurabh Agarwal, Ahmed Roman, Ahmed Aly, Beidi Chen, and Carole-Jean Wu. 2024. “LayerSkip: Enabling Early Exit Inference and Self-Speculative Decoding.” *Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*, 12622–12642. [ACL Anthology](https://aclanthology.org/2024.acl-long.681/) · [arXiv:2404.16710](https://arxiv.org/abs/2404.16710) · [authors' code](https://github.com/facebookresearch/LayerSkip)
 
-**Use in this study:** Motivates early-exit inference and supplies the released `facebook/layerskip-llama3-8B` checkpoint. This study evaluates direct prefix-depth generation at 24, 28, and 32 layers.
+**Use in this study:** Motivates early-exit inference and supplies the released `facebook/layerskip-llama3-8B` checkpoint. The 2500-article test compares the original Llama 3 base model, this checkpoint at full depth, and controller-routed generation using this checkpoint at depths 24, 28, or 32.
 
 **Attribution boundary:** This study does not train or fine-tune the released checkpoint's weights and does not reproduce its layer-dropout training or verified self-speculative decoding. The controller and routing policy are PSSN code. Cite the paper for the checkpoint's research method, but do not attribute this study's controller or results to Elhoushi et al.
 
@@ -65,7 +65,7 @@ Theodore Glavas, Joud Chataoui, Florence Regol, Wassim Jabbour, Antonios Valkana
 
 ## Research gap
 
-Prior work establishes several approaches to adaptive computation, including token-level confidence-based early exit (Schuster et al., 2022), intermediate-layer tuning and exit policies (Varshney et al., 2024), and dynamic layer selection (Glavas et al., 2024). The sources reviewed here do not directly evaluate the specific setup studied in this project: a separate controller uses article text to choose a fixed inference depth before summarization, with its labels derived from completion and ROUGE-L criteria. This study evaluates that controller-routed system against the full-depth Llama 3 8B base model under shared inputs and generation settings. The gap is limited to this applied setup and does not imply that no prior work has explored controller-based depth selection.
+Prior work establishes several approaches to adaptive computation, including token-level confidence-based early exit (Schuster et al., 2022), intermediate-layer tuning and exit policies (Varshney et al., 2024), and dynamic layer selection (Glavas et al., 2024). The sources reviewed here do not directly evaluate the specific setup studied in this project: a separate controller uses article text to choose a fixed inference depth before summarization, with its labels derived from completion and ROUGE-L criteria. This study evaluates the original full-depth Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and controller-routed generation from that checkpoint on the same 2500-article test under shared inputs and generation settings. The gap is limited to this applied setup and does not imply that no prior work has explored controller-based depth selection.
 
 ## 3. Dataset, model, and code sources
 
@@ -79,7 +79,7 @@ Prior work establishes several approaches to adaptive computation, including tok
 ### Released LayerSkip checkpoint
 
 - [Model card: `facebook/layerskip-llama3-8B`](https://huggingface.co/facebook/layerskip-llama3-8B)
-- **Use:** Early-exit-capable model and tokenizer for controller-routed generation. The 2500-article run records revision `3b9e03eaf3cc90812a7bd2b69106b626d63bac1f`.
+- **Use:** Early-exit-capable model and tokenizer for both full-depth checkpoint inference and controller-routed generation in the 2500-article run. The run records revision `3b9e03eaf3cc90812a7bd2b69106b626d63bac1f`.
 - **Boundary:** This study does not fine-tune this checkpoint.
 
 ### Original Llama 3 8B checkpoint

@@ -74,11 +74,12 @@ For each of the 375 held-out articles, routing checks the shallow candidates in 
 | System | Checkpoint | Depth policy | Comparison purpose |
 |---|---|---|---|
 | Original Llama 3 full depth | Original Llama 3 8B | 32 | Original-model reference |
-| Controller-routed early exit | Early-exit-capable Llama 3 8B | 24, 28, or 32 | Evaluate learned routing against the base model |
+| Early-exit checkpoint full depth | Early-exit-capable Llama 3 8B | 32 | Isolate checkpoint/model difference at full depth |
+| Controller-routed early exit | Early-exit-capable Llama 3 8B | 24, 28, or 32 | Evaluate learned routing against both full-depth systems |
 
-Each system summarizes the same 2500 live-test articles with three timing repetitions: **2500 articles × 2 systems × 3 repetitions = 15,000 measured generations**, plus warmups. Summary-quality results use the first repetition, so the quality sample size remains 2500 articles. Timing and energy aggregate all three repetitions. Output-token consistency is checked across repetitions.
+Each system summarizes the same 2500 live-test articles with three timing repetitions: **2500 articles × 3 systems × 3 repetitions = 22,500 measured generations**, plus warmups. Summary-quality results use the first repetition, so the quality sample size remains 2500 articles per system. Timing and energy aggregate all three repetitions. Output-token consistency is checked across repetitions.
 
-One checkpoint is resident at a time. Checkpoint order reverses across repetitions; baseline and controller-routed execution order alternates by article. These controls reduce order effects. GPU synchronization bounds each timed inference window, and controller routing time is included in reported latency.
+One checkpoint is resident at a time. Checkpoint order reverses across repetitions; system execution order alternates by article. These controls reduce order effects. GPU synchronization bounds each timed inference window, and controller routing time is included in reported latency.
 
 ### 4.3 Evaluation flowchart
 
@@ -89,10 +90,12 @@ flowchart TD
     B --> D[Cached routing: ROUGE completion and depth choices]
     A --> E[2500 separate live-test articles with identical prompts]
     E --> F[Original Llama 3 at depth 32]
+    E --> G[Early-exit checkpoint at depth 32]
     E --> H[Controller scores article and candidate depths]
     H --> I[Choose first qualifying shallow depth or fall back to 32]
     I --> J[Early-exit model generates at selected fixed depth]
     F --> K[Three timing repetitions for every system]
+    G --> K
     J --> K
     K --> L[First repetition: ROUGE completion and output matching]
     K --> M[All repetitions: latency tokens work memory and energy]
@@ -121,6 +124,6 @@ For baseline B and candidate C:
 
 - `reduction (%) = 100 × (1 - C / B)` for time, output tokens, estimated work, and energy. A negative value means an increase.
 - `speedup = baseline time / candidate time`.
-- `ROUGE difference (points) = 100 × (candidate mean - baseline mean)`.
+- `ROUGE difference (points) = (candidate mean - baseline mean)`.
 
 Latency excludes model loading, downloads, warmups, input tokenization, ROUGE computation, and disk writes. All 32 layers' weights stay resident. Energy uses whole-device readings without idle subtraction. The saved run's energy telemetry requires interpretation in light of the GPU environment and counter support.

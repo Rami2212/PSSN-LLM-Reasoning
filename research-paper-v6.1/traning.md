@@ -25,7 +25,7 @@ Articles were split before expanding them into depth examples, preventing the sa
 | Held-out evaluation |      375 |                   1125 | Evaluate the frozen controller |
 | Total |     2500 |                   7500 | Controller development dataset |
 
-A separate 2500-article test set was reserved for live system comparison.
+A separate 2500-article test set was reserved for a three-system live comparison: original Llama 3 at full depth, the early-exit-capable checkpoint at full depth, and the same checkpoint with controller-selected depth.
 
 ## Training method
 
@@ -54,5 +54,5 @@ flowchart TD
     E --> F[Search 12 settings using validation articles]
     F --> G[Save controller with C 1 and threshold 0.5]
     G --> H[Evaluate on untouched held-out articles]
-    G --> I[Live comparison on 2500 separate test articles]
+    G --> I[Three-system live comparison on 2500 separate test articles]
 ```

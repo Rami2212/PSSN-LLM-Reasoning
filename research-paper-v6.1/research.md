@@ -11,20 +11,21 @@ Running every summarization request through all model layers can spend computati
 ## Research questions
 
 1. **RQ1:** Can a controller trained on article text predict an inference depth (24, 28, or 32 layers) for an early-exit-capable Llama 3 8B model that satisfies the predefined summary-quality rule?
-2. **RQ2:** Under the same prompts, inputs, and generation settings, how does controller-routed early-exit inference compare with the full-depth Llama 3 8B base model in summary quality, measured by ROUGE-1/2/L and completion rate?
-3. **RQ3:** What efficiency differences are observed between controller-routed early-exit inference and the full-depth Llama 3 8B base model in estimated layer-token work, latency, GPU memory, and measured GPU energy?
+2. **RQ2:** Under the same prompts, inputs, and generation settings, how does full-depth inference with the early-exit-capable checkpoint compare with the original Llama 3 8B base model in ROUGE-1/2/L, completion rate, and efficiency?
+3. **RQ3:** On the same 2500-article live test, how does controller-routed early-exit inference compare with both full-depth systems in summary quality and efficiency?
 
 ## Research objectives
 
 ### Main objective
 
-To implement and evaluate a controller that selects an inference depth for summarization with an early-exit-capable Llama 3 8B model, measuring the resulting quality and efficiency against the full-depth Llama 3 8B base model.
+To implement and evaluate a controller that selects an inference depth for summarization with an early-exit-capable Llama 3 8B model, comparing the original base model, the checkpoint at full depth, and controller-routed generation from the checkpoint on the same 2500-article live test.
 
 ### Specific objectives
 
 1. Prepare CNN/DailyMail 3.0.0 articles and reference highlights, keeping controller training, validation, and test articles separate at the article level.
 2. Generate training-label summaries at 24, 28, and 32 layers with the early-exit-capable Llama 3 8B model, assign labels using the predefined completion and ROUGE-L quality rule, and train and evaluate a separate word- and character-level TF-IDF plus balanced logistic-regression controller to select a depth from article text.
-3. Evaluate controller-routed early-exit inference against the full-depth Llama 3 8B base model using identical prompts and generation limits, reporting summary quality, controller label metrics, output tokens, estimated layer-token work, latency, GPU memory, and GPU energy with the limits of each measure.
+3. Compare the original Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and controller-routed generation from that checkpoint on the same 2500-article test with identical prompts and generation settings.
+4. Report summary quality, controller label metrics, output tokens, estimated layer-token work, latency, GPU memory, and GPU energy, explaining the limits of each measure.
 
 ## Controller–model architecture
 
@@ -75,5 +76,5 @@ This study makes four contributions:
 
 - applies the project's separate-controller approach to text summarization;
 - documents a reproducible pipeline for creating article-depth quality labels, training and evaluating the controller, and testing on a separate article set;
-- evaluates controller-routed early-exit inference against the full-depth Llama 3 8B base model on the same 2500-article test set; and
+- compares the original base model, the early-exit-capable checkpoint at full depth, and controller-routed generation from that checkpoint on the same 2500-article test; and
 - reports quality and efficiency together, distinguishing measured latency and energy from estimated layer-token work and discussing the limits of article-level TF-IDF for predicting per-depth summary quality.
