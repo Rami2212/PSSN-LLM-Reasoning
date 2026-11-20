@@ -2,9 +2,7 @@
 
 ## Research title
 
-**PSSN: Predicting Adaptive Inference Depth for Large Language Model Text Generation: A Controller-Based Study**
-
-**PSSN:** Predictive Stage Selection Navigator
+**Predicting Adaptive Inference Depth for Large Language Model Text Generation: A Controller-Based Study**
 
 ## Research problem
 
@@ -12,7 +10,7 @@ Running every request through all model layers can spend computation on examples
 
 ## Research questions
 
-**Main research question:** Can PSSN select an inference depth for an early-exit-capable model while preserving generated-text quality and improving inference efficiency compared with the original base model and the checkpoint running at full depth?
+**Main research question:** Can the controller select an inference depth for an early-exit-capable model while preserving generated-text quality and improving inference efficiency compared with the original base model and the checkpoint running at full depth?
 
 1. **RQ1:** Can a controller trained on article text predict a suitable inference depth (24, 28, or 32 layers) for an early-exit-capable Llama 3 8B model?
 2. **RQ2:** Under the same prompts, inputs, and generation settings, how does full-depth inference with the early-exit-capable checkpoint compare with the original Llama 3 8B base model in ROUGE-1/2/L, completion rate, and efficiency?
@@ -28,7 +26,7 @@ To implement and evaluate a controller that selects an inference depth for text 
 
 1. Prepare article-level training, validation, and test partitions; generate candidate text at 24, 28, and 32 layers; and create labeled article-depth examples for controller training and evaluation.
 2. Evaluate the controller's ability to predict acceptable inference depths using held-out articles and controller-label metrics.
-3. Compare the original Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and PSSN-routed generation on the same 2500-article test under identical settings, reporting generated-text quality and latency.
+3. Compare the original Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and controller-routed generation on the same 2500-article test under identical settings, reporting generated-text quality and latency.
 
 ## Controller–model architecture
 

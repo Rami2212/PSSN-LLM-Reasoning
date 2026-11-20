@@ -1,7 +1,7 @@
 # Citations and source-use record
 
-**Project:** PSSN text summarization controller  
-**Purpose:** Record the research papers, model and dataset sources, evaluation references, software, and hardware documentation used to design and run this study. The notes distinguish published methods from PSSN's own choices.
+**Project:** Text summarization controller  
+**Purpose:** Record the research papers, model and dataset sources, evaluation references, software, and hardware documentation used to design and run this study. The notes distinguish published methods from this study's own choices.
 
 ## 1. Research papers used directly
 
@@ -11,7 +11,7 @@ Mostafa Elhoushi, Akshat Shrivastava, Diana Liskovich, Basil Hosmer, Bram Wasti,
 
 **Use in this study:** Motivates early-exit inference and supplies the released `facebook/layerskip-llama3-8B` checkpoint. The 2500-article test compares the original Llama 3 base model, this checkpoint at full depth, and controller-routed generation using this checkpoint at depths 24, 28, or 32.
 
-**Attribution boundary:** This study does not train or fine-tune the released checkpoint's weights and does not reproduce its layer-dropout training or verified self-speculative decoding. The controller and routing policy are PSSN code. Cite the paper for the checkpoint's research method, but do not attribute this study's controller or results to Elhoushi et al.
+**Attribution boundary:** This study does not train or fine-tune the released checkpoint's weights and does not reproduce its layer-dropout training or verified self-speculative decoding. The controller and routing policy are this study's code. Cite the paper for the checkpoint's research method, but do not attribute this study's controller or results to Elhoushi et al.
 
 ### Teaching Machines to Read and Comprehend
 
@@ -87,7 +87,7 @@ Prior work establishes several approaches to adaptive computation, including tok
 - [Model card: `meta-llama/Meta-Llama-3-8B`](https://huggingface.co/meta-llama/Meta-Llama-3-8B)
 - **Use:** Original-model full-depth baseline. The 2500-article run records revision `8cde5ca8380496c9a6cc7ef3a8b46a0372a1d920`.
 
-### PSSN controller method (internal project source)
+### Controller method (internal project source)
 
 - **Use:** This study continues the project's separate-controller approach: word/character TF-IDF features plus balanced logistic regression predict labels for candidate depths. It applies the approach to summarization using CNN/DailyMail outputs.
 - **Boundary:** This is an internal prior implementation, not an external research paper. The exact prompt, label construction, and routing policy are project-specific.
@@ -139,7 +139,7 @@ These are technical sources, not research papers. Include exact environment vers
 | Llama 3 base-model comparator | Grattafiori et al. (2024); Llama 3 model card | Record the exact checkpoint revision used in this run. |
 | CNN/DailyMail data and summarization task | Hermann et al. (2015); See et al. (2017); dataset card/repository | Report the 3.0.0 config, split, sampling, and resolved commit. |
 | Summary-quality score | Lin (2004); `rouge-score` implementation | ROUGE overlap is not factuality. The quality thresholds are project choices. |
-| TF-IDF/logistic-regression controller | Pedregosa et al. (2011); PSSN controller code | The controller is PSSN's separate classifier, not the released model's training procedure. |
+| TF-IDF/logistic-regression controller | Pedregosa et al. (2011); internal controller code | The controller is this study's separate classifier, not the released model's training procedure. |
 | Model/data software | Wolf et al. (2020); Lhoest et al. (2021); Paszke et al. (2019) | Pair these citations with pinned software versions. |
 | GPU power | AMD ROCm and AMD SMI documentation; run manifest | Power is a whole-device reading during inference windows. |
 
