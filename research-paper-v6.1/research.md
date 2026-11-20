@@ -2,30 +2,33 @@
 
 ## Research title
 
-**Predicting Adaptive Inference Depth for Large Language Model Text Summarization: A Controller-Based Study**
+**PSSN: Predicting Adaptive Inference Depth for Large Language Model Text Generation: A Controller-Based Study**
+
+**PSSN:** Predictive Stage Selection Navigator
 
 ## Research problem
 
-Running every summarization request through all model layers can spend computation on examples that may be adequately summarized at a shallower depth. This investigates whether a lightweight controller can predict an acceptable depth from the input article and whether that routing produces a useful efficiency change while preserving summary quality.
+Running every request through all model layers can spend computation on examples that may be adequately generated at a shallower depth. This investigates whether a lightweight controller can predict an acceptable depth from the input article and whether that routing produces a useful efficiency change while preserving answer quality.
 
 ## Research questions
 
-1. **RQ1:** Can a controller trained on article text predict an inference depth (24, 28, or 32 layers) for an early-exit-capable Llama 3 8B model that satisfies the predefined summary-quality rule?
+**Main research question:** Can PSSN select an inference depth for an early-exit-capable model while preserving generated-text quality and improving inference efficiency compared with the original base model and the checkpoint running at full depth?
+
+1. **RQ1:** Can a controller trained on article text predict a suitable inference depth (24, 28, or 32 layers) for an early-exit-capable Llama 3 8B model?
 2. **RQ2:** Under the same prompts, inputs, and generation settings, how does full-depth inference with the early-exit-capable checkpoint compare with the original Llama 3 8B base model in ROUGE-1/2/L, completion rate, and efficiency?
-3. **RQ3:** On the same 2500-article live test, how does controller-routed early-exit inference compare with both full-depth systems in summary quality and efficiency?
+3. **RQ3:** On the same 2500-article live test, how does controller-routed early-exit inference compare with both full-depth systems in generated-text quality and efficiency?
 
 ## Research objectives
 
 ### Main objective
 
-To implement and evaluate a controller that selects an inference depth for summarization with an early-exit-capable Llama 3 8B model, comparing the original base model, the checkpoint at full depth, and controller-routed generation from the checkpoint on the same 2500-article live test.
+To implement and evaluate a controller that selects an inference depth for text generation with an early-exit-capable Llama 3 8B model, comparing the original base model, the checkpoint at full depth, and controller-routed generation from the checkpoint on the same 2500-article live test.
 
 ### Specific objectives
 
-1. Prepare CNN/DailyMail 3.0.0 articles and reference highlights, keeping controller training, validation, and test articles separate at the article level.
-2. Generate training-label summaries at 24, 28, and 32 layers with the early-exit-capable Llama 3 8B model, assign labels using the predefined completion and ROUGE-L quality rule, and train and evaluate a separate word- and character-level TF-IDF plus balanced logistic-regression controller to select a depth from article text.
-3. Compare the original Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and controller-routed generation from that checkpoint on the same 2500-article test with identical prompts and generation settings.
-4. Report summary quality, controller label metrics, output tokens, estimated layer-token work, latency, GPU memory, and GPU energy, explaining the limits of each measure.
+1. Prepare article-level training, validation, and test partitions; generate candidate text at 24, 28, and 32 layers; and create labeled article-depth examples for controller training and evaluation.
+2. Evaluate the controller's ability to predict acceptable inference depths using held-out articles and controller-label metrics.
+3. Compare the original Llama 3 8B base model, the early-exit-capable checkpoint at full depth, and PSSN-routed generation on the same 2500-article test under identical settings, reporting generated-text quality and latency.
 
 ## Controller–model architecture
 
@@ -77,4 +80,4 @@ This study makes four contributions:
 - applies the project's separate-controller approach to text summarization;
 - documents a reproducible pipeline for creating article-depth quality labels, training and evaluating the controller, and testing on a separate article set;
 - compares the original base model, the early-exit-capable checkpoint at full depth, and controller-routed generation from that checkpoint on the same 2500-article test; and
-- reports quality and efficiency together, distinguishing measured latency and energy from estimated layer-token work and discussing the limits of article-level TF-IDF for predicting per-depth summary quality.
+- reports quality and efficiency together, reporting latency and discussing the limits of article-level TF-IDF for predicting per-depth summary quality.

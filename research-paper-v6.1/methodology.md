@@ -18,11 +18,7 @@ Generation uses greedy decoding with a 192-token output cap. EOS or the next-art
 
 ### 3.1 Generate supervision
 
-Each of the 2500 labeling articles is summarized independently with the early-exit-capable Llama 3 8B model at depths 24, 28, and 32. This produces **7500 article-depth examples**. For article i and depth d, let R(i,d) denote reference ROUGE-L F1. The binary target is:
-
-`label(i,d) = 1` if the summary is complete and nonempty, `R(i,d) >= 0.15`, and `R(i,d) >= R(i,32) - 0.02`; otherwise `label(i,d) = 0`.
-
-The 0.15 floor and 0.02 drop allowance are pilot choices for this study. A positive label means the output satisfies this rule; it is not a factual-correctness judgment. Depth 32 can also receive a negative label because of the absolute floor or completion requirement.
+Each of the 2500 labeling articles is summarized independently with the early-exit-capable Llama 3 8B model at depths 24, 28, and 32. This produces **7500 article-depth examples**. Each article-depth example receives a binary target for controller training.
 
 ### 3.2 Split by article
 
@@ -38,9 +34,9 @@ All three depth examples from an article stay in the same partition. The separat
 
 The controller input combines visible article text with a candidate-depth token. Word TF-IDF uses unigrams/bigrams and up to 20,000 features; character TF-IDF uses `char_wb` 3–5 grams and up to 20,000 features. Both use sublinear term-frequency scaling. Their concatenated features feed balanced logistic regression with the `lbfgs` solver, a 2,000-iteration cap, and seed 42.
 
-Three classifier fits use C values 0.1, 1, and 10. Each is assessed with routing thresholds 0.5, 0.7, 0.9, and 1.1, giving 12 validation configurations. Selection first prefers configurations with validation mean ROUGE-L drop at most 0.02, then minimizes mean depth. Ties prefer higher mean ROUGE-L, smaller C, and higher threshold. This objective does not impose a separate minimum completion rate or per-article pass rate.
+Three classifier fits use C values 0.1, 1, and 10. Each is assessed with routing thresholds 0.5, 0.7, 0.9, and 1.1, giving 12 configurations compared on validation data. The selected settings are C = 1 and routing threshold = 0.5.
 
-The chosen settings are **C = 1 and threshold = 0.5**. The selected fitted pipeline and metadata are saved as a reusable controller artifact; validation and held-out articles are not added for a final refit.
+The selected fitted pipeline and metadata are saved as a reusable controller artifact; validation and held-out articles are not added for a final refit.
 
 ### 3.4 Training and initial evaluation flowchart
 
@@ -48,7 +44,7 @@ The chosen settings are **C = 1 and threshold = 0.5**. The selected fitted pipel
 flowchart TD
     A[Prepare 2500 labeling articles and separate demonstrations] --> B[Frozen early-exit-capable model generates at depths 24 28 and 32]
     B --> C[Score 7500 summaries against reference highlights]
-    C --> D[Assign completion and ROUGE quality labels]
+    C --> D[Assign binary controller targets]
     D --> E[Partition by article]
     E --> F[1750 training articles: 5250 examples]
     E --> G[375 validation articles: 1125 examples]
@@ -67,7 +63,7 @@ flowchart TD
 
 The frozen controller predicts the quality label for each of the 1125 held-out article-depth examples. Evaluation reports accuracy, precision, recall, F1, and the confusion matrix at threshold 0.5. These measure the binary quality-label task.
 
-For each of the 375 held-out articles, routing checks the shallow candidates in ascending order and selects the first with predicted positive probability at least the threshold. If neither qualifies, it selects depth 32. The selected depth remains fixed for the whole generation. Cached depth outputs provide routing ROUGE-L, quality-rule pass rate, completion rate, and depth distribution. Cached evaluation supplies no new live latency measurement.
+For each of the 375 held-out articles, routing checks the shallow candidates in ascending order and selects the first with predicted positive probability at least the threshold. If neither qualifies, it selects depth 32. The selected depth remains fixed for the whole generation. Cached depth outputs provide routing ROUGE-L, completion rate, and depth distribution. Cached evaluation supplies no new live latency measurement.
 
 ### 4.2 Live system comparison
 
@@ -77,7 +73,7 @@ For each of the 375 held-out articles, routing checks the shallow candidates in 
 | Early-exit checkpoint full depth | Early-exit-capable Llama 3 8B | 32 | Isolate checkpoint/model difference at full depth |
 | Controller-routed early exit | Early-exit-capable Llama 3 8B | 24, 28, or 32 | Evaluate learned routing against both full-depth systems |
 
-Each system summarizes the same 2500 live-test articles with three timing repetitions: **2500 articles × 3 systems × 3 repetitions = 22,500 measured generations**, plus warmups. Summary-quality results use the first repetition, so the quality sample size remains 2500 articles per system. Timing and energy aggregate all three repetitions. Output-token consistency is checked across repetitions.
+Each system summarizes the same 2500 live-test articles with three timing repetitions: **2500 articles × 3 systems × 3 repetitions = 22,500 measured generations**, plus warmups. Summary-quality results use the first repetition, so the quality sample size remains 2500 articles per system. Timing aggregates all three repetitions.
 
 One checkpoint is resident at a time. Checkpoint order reverses across repetitions; system execution order alternates by article. These controls reduce order effects. GPU synchronization bounds each timed inference window, and controller routing time is included in reported latency.
 
@@ -98,7 +94,7 @@ flowchart TD
     G --> K
     J --> K
     K --> L[First repetition: ROUGE completion and output matching]
-    K --> M[All repetitions: latency tokens work memory and energy]
+    K --> M[All repetitions: latency]
     L --> N[Paired system comparisons]
     M --> N
     N --> O[Save outputs decisions metrics and manifests]
@@ -110,20 +106,15 @@ flowchart TD
 |---|---|
 | Summary overlap | Stemmed ROUGE-1, ROUGE-2, and ROUGE-L F1 against reference highlights, on a 0–1 scale |
 | Completion | Fraction meeting the stopping/nonempty-output rule |
-| Quality-rule pass rate | Fraction passing completion, absolute ROUGE-L floor, and allowed drop against the stated baseline |
 | Classifier metrics | Accuracy, precision, recall, F1, and TP/TN/FP/FN on held-out quality labels |
 | Latency | Total, mean; includes input transfer, generation, and CPU routing |
-| Output tokens | Generated token count including EOS/boundary tokens; tokenization is outside latency |
-| Throughput | Generated tokens divided by measured inference seconds |
 | Depth | Mean selected depth and counts for 24, 28, and 32 |
-| Estimated work | `depth × (input tokens + generated tokens - 1)`; a layer-token proxy |
-| GPU energy | AMD SMI cumulative-energy counter difference over the synchronized inference window, in joules |
 | GPU power | Reported average power during inference windows, in watts |
 
 For baseline B and candidate C:
 
-- `reduction (%) = 100 × (1 - C / B)` for time, output tokens, estimated work, and energy. A negative value means an increase.
+- `reduction (%) = 100 × (1 - C / B)` for time. A negative value means an increase.
 - `speedup = baseline time / candidate time`.
-- `ROUGE difference (points) = (candidate mean - baseline mean)`.
+- `ROUGE difference (points) = 100 x (candidate mean - baseline mean)`.
 
-Latency excludes model loading, downloads, warmups, input tokenization, ROUGE computation, and disk writes. All 32 layers' weights stay resident. Energy uses whole-device readings without idle subtraction. The saved run's energy telemetry requires interpretation in light of the GPU environment and counter support.
+Latency excludes model loading, downloads, warmups, input tokenization, ROUGE computation, and disk writes.

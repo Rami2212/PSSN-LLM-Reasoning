@@ -33,7 +33,7 @@ Chin-Yew Lin. 2004. “ROUGE: A Package for Automatic Evaluation of Summaries.�
 
 **Use in this study:** Defines the ROUGE family used to compare generated summaries with CNN/DailyMail reference highlights. This study reports stemmed ROUGE-1, ROUGE-2, and ROUGE-L F1.
 
-**Limit:** ROUGE measures reference-text overlap; it does not establish factual correctness or entailment. The quality thresholds used here (ROUGE-L floor 0.15 and maximum 0.02 drop from depth 32) are pilot choices made for this project, not thresholds prescribed by Lin or a universal standard.
+**Limit:** ROUGE measures reference-text overlap; it does not establish factual correctness or entailment.
 
 ### The Llama 3 Herd of Models
 
@@ -89,8 +89,8 @@ Prior work establishes several approaches to adaptive computation, including tok
 
 ### PSSN controller method (internal project source)
 
-- **Use:** This study continues the project's separate-controller approach: word/character TF-IDF features plus balanced logistic regression predict quality labels for candidate depths. It applies the approach to summarization and creates labels from CNN/DailyMail outputs.
-- **Boundary:** This is an internal prior implementation, not an external research paper. The exact prompt, quality labels, threshold search, and routing policy are project-specific.
+- **Use:** This study continues the project's separate-controller approach: word/character TF-IDF features plus balanced logistic regression predict labels for candidate depths. It applies the approach to summarization using CNN/DailyMail outputs.
+- **Boundary:** This is an internal prior implementation, not an external research paper. The exact prompt, label construction, and routing policy are project-specific.
 
 ## 4. Software and evaluation implementation sources
 
@@ -116,7 +116,7 @@ Fabian Pedregosa et al. 2011. “Scikit-learn: Machine Learning in Python.” *J
 
 Adam Paszke et al. 2019. “PyTorch: An Imperative Style, High-Performance Deep Learning Library.” *Advances in Neural Information Processing Systems 32*. [NeurIPS paper](https://proceedings.neurips.cc/paper_files/paper/2019/hash/bdbca288fee7f92f2bfa9f7012727740-Abstract.html)
 
-**Use:** Tensor operations, GPU inference, synchronized timing, and PyTorch allocator memory measurements. The layer-token count is a project-defined estimate, not a FLOP measurement supplied by PyTorch.
+**Use:** Tensor operations, GPU inference, and synchronized timing.
 
 ### ROUGE implementation
 
@@ -126,7 +126,7 @@ Adam Paszke et al. 2019. “PyTorch: An Imperative Style, High-Performance Deep 
 ## 5. Hardware and reproducibility documentation
 
 - [AMD ROCm 7.2 PyTorch installation guide](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.2.0/install/3rd-party/pytorch-install.html): server installation guidance; run metadata records the actual ROCm/HIP and PyTorch versions.
-- [AMD SMI 7.2.3 CLI documentation](https://rocm.docs.amd.com/projects/amdsmi/en/docs-7.2.3/how-to/amdsmi-cli-tool.html) and [AMD SMI Python API reference](https://rocm.docs.amd.com/projects/amdsmi/en/docs-7.2.4/reference/amdsmi-py-api.html): GPU telemetry and cumulative energy counter used in the experiment. AMD documents the counter as unsupported on virtual-machine guests; the run reports an MI300X VF, so state the reported telemetry's scope and treat energy results cautiously.
+- [AMD SMI 7.2.3 CLI documentation](https://rocm.docs.amd.com/projects/amdsmi/en/docs-7.2.3/how-to/amdsmi-cli-tool.html) and [AMD SMI Python API reference](https://rocm.docs.amd.com/projects/amdsmi/en/docs-7.2.4/reference/amdsmi-py-api.html): GPU power telemetry used in the experiment.
 - The experiment setup, implementation, protocol, and 2500-article run manifest are project artifacts; preserve their exact paths, revisions, source hashes, package versions, and GPU details in the reproducibility package.
 
 These are technical sources, not research papers. Include exact environment versions and hardware in methods/reproducibility sections rather than treating documentation as research evidence.
@@ -141,5 +141,5 @@ These are technical sources, not research papers. Include exact environment vers
 | Summary-quality score | Lin (2004); `rouge-score` implementation | ROUGE overlap is not factuality. The quality thresholds are project choices. |
 | TF-IDF/logistic-regression controller | Pedregosa et al. (2011); PSSN controller code | The controller is PSSN's separate classifier, not the released model's training procedure. |
 | Model/data software | Wolf et al. (2020); Lhoest et al. (2021); Paszke et al. (2019) | Pair these citations with pinned software versions. |
-| GPU time/energy | AMD ROCm and AMD SMI documentation; run manifest | Energy is a whole-device counter delta around inference, not energy attributed to model-only operations. |
+| GPU power | AMD ROCm and AMD SMI documentation; run manifest | Power is a whole-device reading during inference windows. |
 
